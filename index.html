@@ -491,7 +491,7 @@ async function atLoadByCode(code){
 async function atLoad(){
   const cfg=atCfg();if(!cfg)return null;
   try{
-    const r=await fetch(atUrl(cfg)+'?sort%5B0%5D%5Bfield%5D=Created&sort%5B0%5D%5Bdirection%5D=desc&pageSize=50',{headers:{'Authorization':`Bearer ${cfg.pat}`}});
+    const r=await fetch(atUrl(cfg)+'?pageSize=50',{headers:{'Authorization':`Bearer ${cfg.pat}`}});
     const d=await r.json();
     if(!r.ok||d.error)return null;
     return d.records.map(rec=>({
@@ -946,10 +946,19 @@ function renderHistoryList(saved,list){
 }
 
 function viewSession(idx){
-  const sess=_histList[idx];if(!sess)return;
-  S.name=sess.name;S.id=sess.id||'';S.ice=sess.ice||null;
-  S.cards=sess.cards||{well:[],better:[],next:[]};S.actions=sess.actions||[];S.demoIn=false;S.existingCards=null;
-  buildSummary();show('s-summary');
+  const sess=_histList[idx];
+  if(!sess){toast('Could not load session');return}
+  S.name=sess.name||'Retro';S.id=sess.id||'';S.ice=sess.ice||null;
+  const c=sess.cards;
+  S.cards={
+    well:Array.isArray(c?.well)?c.well:[],
+    better:Array.isArray(c?.better)?c.better:[],
+    next:Array.isArray(c?.next)?c.next:[],
+  };
+  S.actions=Array.isArray(sess.actions)?sess.actions:[];
+  S.demoIn=false;S.existingCards=null;
+  try{buildSummary()}catch(e){console.error('buildSummary error',e)}
+  show('s-summary');
 }
 
 // ===== INIT =====
