@@ -191,6 +191,11 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .at-dot{width:7px;height:7px;border-radius:50%;background:var(--border-strong);flex-shrink:0;transition:background .2s}.at-dot.on{background:var(--well-hdr)}
 .modal-err{font-size:.78rem;color:#C0392B;display:none}.modal-err.show{display:block}
 .modal-ok{font-size:.78rem;color:var(--well-accent);display:none}.modal-ok.show{display:block}
+/* Share banner */
+.share-banner{background:var(--next-bg);border-bottom:2px solid var(--next-border);padding:.75rem 1.125rem;display:flex;align-items:center;gap:.875rem;flex-shrink:0}
+.share-banner-label{font-size:.8rem;color:var(--next-accent);font-weight:600;flex-shrink:0}
+.share-code-big{font-family:'SF Mono',Menlo,monospace;font-size:1.1rem;font-weight:700;color:var(--ink);letter-spacing:.1em;background:var(--surface);border:1.5px solid var(--next-border);border-radius:var(--r-sm);padding:.35rem .75rem;flex-shrink:0}
+.share-banner-sub{font-size:.78rem;color:var(--ink-2);flex:1}
 /* Toast */
 .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(8px);background:var(--ink);color:var(--btn-fg);padding:.525rem 1.125rem;border-radius:100px;font-size:.8rem;font-weight:500;opacity:0;transition:all .22s ease;pointer-events:none;z-index:200;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -267,6 +272,13 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 
 <!-- BOARD -->
 <div id="s-board" class="screen">
+  <div class="share-banner" id="share-banner" style="display:none">
+    <div class="share-banner-label">🔗 Share this code</div>
+    <div class="share-code-big" id="share-code-big"></div>
+    <div class="share-banner-sub">Send this to teammates so they can join with <strong>Join with Code</strong></div>
+    <button class="btn btn-primary btn-sm" onclick="copyShareCode()">Copy</button>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('share-banner').style.display='none'">✕</button>
+  </div>
   <header class="board-hdr">
     <div class="wm" style="font-size:1rem;flex-shrink:0">retro.</div>
     <div class="board-name" id="board-name"></div>
@@ -588,6 +600,11 @@ function initBoard(){
   document.getElementById('timer-disp').style.display=S.isJoining?'none':'';
   document.getElementById('ai-owner').value=S.user;
   document.getElementById('ai-due').value=new Date().toISOString().split('T')[0];
+  // Show share banner for creators only
+  const banner=document.getElementById('share-banner');
+  const codeBig=document.getElementById('share-code-big');
+  if(!S.isJoining){codeBig.textContent=S.id;banner.style.display='flex'}
+  else{banner.style.display='none'}
   renderBoard();updatePhaseUI();
 }
 
@@ -815,6 +832,7 @@ function buildSummary(){
 }
 
 function copyCode(){navigator.clipboard.writeText(S.id).then(()=>toast('Code '+S.id+' copied!'))}
+function copyShareCode(){navigator.clipboard.writeText(S.id).then(()=>{toast('Code '+S.id+' copied!');document.getElementById('share-banner').style.display='none'})}
 function copyExport(){
   const all={well:allCards('well').sort((a,b)=>(b.votes||0)-(a.votes||0)),better:allCards('better').sort((a,b)=>(b.votes||0)-(a.votes||0)),next:allCards('next').sort((a,b)=>(b.votes||0)-(a.votes||0))};
   const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
