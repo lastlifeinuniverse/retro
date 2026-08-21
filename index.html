@@ -381,7 +381,7 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
       <strong>One-time setup:</strong><br>
       1. Create a free base at <code>airtable.com</code><br>
       2. Add a table called <code>Retros</code> with fields:<br>
-      &nbsp;&nbsp;<code>Session ID</code> · <code>Name</code> · <code>Icebreaker</code> (Single line text)<br>
+      &nbsp;&nbsp;<code>Retro Code</code> · <code>Name</code> · <code>Icebreaker</code> (Single line text)<br>
       &nbsp;&nbsp;<code>Cards</code> · <code>Actions</code> (Long text)<br>
       3. Go to <code>airtable.com/create/tokens</code> → create token with<br>
       &nbsp;&nbsp;<code>data.records:read</code> + <code>data.records:write</code> + add your base<br>
@@ -457,7 +457,7 @@ async function atSave(sess){
   const cfg=atCfg();if(!cfg)return null;
   try{
     const r=await fetch(atUrl(cfg),{method:'POST',headers:atHdr(cfg),
-      body:JSON.stringify({records:[{fields:{'Session ID':sess.id,'Name':sess.name,'Icebreaker':sess.ice||'','Cards':JSON.stringify(sess.cards),'Actions':JSON.stringify(sess.actions)}}]})});
+      body:JSON.stringify({records:[{fields:{'Retro Code':sess.id,'Name':sess.name,'Icebreaker':sess.ice||'','Cards':JSON.stringify(sess.cards),'Actions':JSON.stringify(sess.actions)}}]})});
     const d=await r.json();
     return d.records?.[0]||null;
   }catch(e){return null}
@@ -471,14 +471,14 @@ async function atUpdate(recordId,fields){
 async function atLoadByCode(code){
   const cfg=atCfg();if(!cfg)return null;
   try{
-    const formula=encodeURIComponent(`{Session ID}="${code}"`);
+    const formula=encodeURIComponent(`{Retro Code}="${code}"`);
     const r=await fetch(`${atUrl(cfg)}?filterByFormula=${formula}&pageSize=1`,{headers:{'Authorization':`Bearer ${cfg.pat}`}});
     const d=await r.json();
     if(!r.ok||!d.records?.length)return null;
     const rec=d.records[0];
     return{
       airtableId:rec.id,
-      id:rec.fields['Session ID'],
+      id:rec.fields['Retro Code'],
       name:rec.fields['Name']||'Retro',
       ice:rec.fields['Icebreaker']||null,
       cards:JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}'),
@@ -494,7 +494,7 @@ async function atLoad(){
     const d=await r.json();
     if(!r.ok||d.error)return null;
     return d.records.map(rec=>({
-      id:rec.fields['Session ID']||'—',name:rec.fields['Name']||'Retro',date:rec.createdTime,
+      id:rec.fields['Retro Code']||'—',name:rec.fields['Name']||'Retro',date:rec.createdTime,
       ice:rec.fields['Icebreaker']||null,
       cards:JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}'),
       actions:JSON.parse(rec.fields['Actions']||'[]'),
