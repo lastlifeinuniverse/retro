@@ -130,6 +130,7 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .r-chip:hover{border-color:var(--border-strong)}.r-chip.on{background:var(--next-bg);border-color:var(--next-border);color:var(--next-accent)}
 .add-r{background:none;border:1px solid var(--border);border-radius:100px;padding:.12rem .4rem;font-size:.72rem;color:var(--ink-3);cursor:pointer;transition:all .11s;line-height:1.4}
 .add-r:hover{border-color:var(--border-strong);color:var(--ink)}
+.card-del{display:none;border:none;background:transparent;color:var(--ink-3);font-size:.75rem;padding:.1rem .3rem;border-radius:4px;line-height:1;cursor:pointer;margin-left:auto}.card-del:hover{background:var(--better-bg);color:var(--better-accent)}.card:hover .card-del{display:inline-flex}
 .vote-btn{display:inline-flex;align-items:center;gap:.22rem;padding:.15rem .48rem;border-radius:100px;border:1.5px solid var(--border-strong);background:transparent;font-size:.72rem;color:var(--ink-2);font-weight:500;transition:all .11s;line-height:1.4}
 .vote-btn:hover:not(:disabled){border-color:var(--btn-bg);color:var(--ink)}
 .vote-btn.voted{background:var(--btn-bg);color:var(--btn-fg);border-color:var(--btn-bg)}
@@ -416,7 +417,7 @@ const S={
   actions:[], dots:5,
   timerSec:600, timerInt:null,
   demoIn:false, isJoining:false, atRecordId:null,
-  rTarget:null,
+  rTarget:null, syncInt:null,
 };
 
 const DEMO={
@@ -605,7 +606,7 @@ function showIce(){
   document.getElementById('sel-emoji').textContent='—';S.ice=null;show('s-ice');
 }
 function selEmoji(e){S.ice=e;document.getElementById('sel-emoji').textContent=e;document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.toggle('sel',b.textContent===e))}
-function finishIce(){initBoard();show('s-board');runDemo()}
+function finishIce(){initBoard();show('s-board')}
 
 // ===== BOARD =====
 function initBoard(){
@@ -625,7 +626,7 @@ function initBoard(){
     if(atCfg()){
       const initSess={id:S.id,name:S.name,date:new Date().toISOString(),ice:S.ice,
         cards:{well:[],better:[],next:[]},actions:[]};
-      atSave(initSess).then(r=>{if(r)S.atRecordId=r.id;else toast('⚠️ Could not save to Airtable — joiners won\'t find this session. Check your connection settings.')});
+      atSave(initSess).then(r=>{if(r){S.atRecordId=r.id;startAirtableSync()}else toast('⚠️ Could not save to Airtable — joiners won\'t find this session. Check your connection settings.')});
     }
   } else{banner.style.display='none'}
   renderBoard();updatePhaseUI();
@@ -665,8 +666,9 @@ function cardHtml(c,mine,phase){
   let voteHtml='';
   if(phase==='voting'){const dis=S.dots<=0&&!c.myV;voteHtml=`<button class="vote-btn${c.myV?' voted':''}" onclick="vote('${c.id}')"${dis?' disabled':''}>${c.myV?'●':'○'} ${c.votes||0}</button>`}
   else if((phase==='actions'||phase==='done')&&(c.votes||0)>0){voteHtml=`<span class="vote-count">● ${c.votes}</span>`}
-  const label=mine&&c.author!=='Alex'&&c.author!=='Morgan'?'you':esc(c.author);
-  return`<div class="card" id="card-${c.id}"><div class="card-text">${esc(c.text)}</div><div class="card-foot"><div class="card-author${mine?' you':''}">${label}</div><div class="reactions">${rHtml}${addBtn}</div>${voteHtml}</div></div>`;
+  const label=mine?'you':esc(c.author);
+  const delBtn=mine&&phase==='writing'?`<button class="card-del" onclick="removeCard('${c.id}')" title="Delete">✕</button>`:'';
+  return`<div class="card" id="card-${c.id}"><div class="card-text">${esc(c.text)}</div><div class="card-foot"><div class="card-author${mine?' you':''}">${label}</div><div class="reactions">${rHtml}${addBtn}</div>${voteHtml}${delBtn}</div></div>`;
 }
 
 function taKey(e,col){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addCard(col)}const ta=e.target;ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,88)+'px'}
@@ -677,6 +679,21 @@ function addCard(col){
   S.cards[col].push({id:genId(),text,author:S.user,reactions:{},myR:{},votes:0,myV:false});
   ta.value='';ta.style.height='auto';renderCol(col);
   const c=document.getElementById('cards-'+col);c.scrollTop=c.scrollHeight;
+}
+function removeCard(id){
+  if(S.phase!=='writing')return;
+  ['well','better','next'].forEach(col=>{S.cards[col]=S.cards[col].filter(c=>c.id!==id)});
+  renderBoard();
+}
+function startAirtableSync(){
+  if(!atCfg()||S.isJoining)return;
+  S.syncInt=setInterval(async()=>{
+    if(S.phase!=='writing'){clearInterval(S.syncInt);S.syncInt=null;return}
+    const sess=await atLoadByCode(S.id);
+    if(!sess)return;
+    S.existingCards=sess.cards;
+    renderBoard();
+  },8000);
 }
 
 // ===== REACTIONS =====
@@ -739,7 +756,13 @@ function handleCta(){
   else if(S.phase==='actions')finishRetro();
 }
 
-function reveal(){stopTimer();S.phase='revealed';renderBoard();updatePhaseUI();const t=allCards('well').length+allCards('better').length+allCards('next').length;toast(`✨ ${t} cards revealed!`);setTimeout(celebrate,150)}
+async function reveal(){
+  stopTimer();clearInterval(S.syncInt);S.syncInt=null;
+  if(atCfg()&&!S.isJoining){const sess=await atLoadByCode(S.id);if(sess)S.existingCards=sess.cards}
+  S.phase='revealed';renderBoard();updatePhaseUI();
+  const t=allCards('well').length+allCards('better').length+allCards('next').length;
+  toast(`✨ ${t} cards revealed!`);setTimeout(celebrate,150);
+}
 function startVoting(){S.phase='voting';renderBoard();updatePhaseUI();toast('5 dots — vote for what matters most')}
 function startActions(){S.phase='actions';renderBoard();updatePhaseUI();setTimeout(()=>document.getElementById('ai-text').focus(),100)}
 function finishRetro(){
@@ -911,19 +934,19 @@ async function showHistory(){
   renderHistoryList(saved,list);
 }
 
+let _histList=[];
 function renderHistoryList(saved,list){
+  _histList=saved;
   if(!saved.length){list.innerHTML='<div style="color:var(--ink-2);text-align:center;padding:2rem">No past retros yet.</div>';return}
   list.innerHTML=saved.map((s,i)=>{
     const n=(s.cards?.well?.length||0)+(s.cards?.better?.length||0)+(s.cards?.next?.length||0);
     const d=new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    const safeJson=JSON.stringify(saved).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return`<div class="history-row" onclick="viewSession(${i},'${safeJson}')"><div><div class="hr-name">${esc(s.name)} ${s.ice||''}</div><div class="hr-meta">${d}</div></div><div class="hr-chips"><span class="chip">${n} cards</span><span class="chip">${s.actions?.length||0} actions</span></div></div>`;
+    return`<div class="history-row" onclick="viewSession(${i})"><div><div class="hr-name">${esc(s.name)} ${s.ice||''}</div><div class="hr-meta">${d}</div></div><div class="hr-chips"><span class="chip">${n} cards</span><span class="chip">${s.actions?.length||0} actions</span></div></div>`;
   }).join('');
 }
 
-function viewSession(idx,listJson){
-  let list=[];try{list=JSON.parse(listJson)}catch(e){}
-  const sess=list[idx];if(!sess)return;
+function viewSession(idx){
+  const sess=_histList[idx];if(!sess)return;
   S.name=sess.name;S.id=sess.id||'';S.ice=sess.ice||null;
   S.cards=sess.cards||{well:[],better:[],next:[]};S.actions=sess.actions||[];S.demoIn=false;S.existingCards=null;
   buildSummary();show('s-summary');
