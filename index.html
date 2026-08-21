@@ -454,9 +454,13 @@ function atUrl(cfg){return`https://api.airtable.com/v0/${cfg.base}/${AT_TABLE}`}
 function atHdr(cfg){return{'Authorization':`Bearer ${cfg.pat}`,'Content-Type':'application/json'}}
 
 async function atSave(sess){
-  const cfg=atCfg();if(!cfg)return;
-  try{await fetch(atUrl(cfg),{method:'POST',headers:atHdr(cfg),
-    body:JSON.stringify({records:[{fields:{'Session ID':sess.id,'Name':sess.name,'Icebreaker':sess.ice||'','Cards':JSON.stringify(sess.cards),'Actions':JSON.stringify(sess.actions)}}]})})}catch(e){}
+  const cfg=atCfg();if(!cfg)return null;
+  try{
+    const r=await fetch(atUrl(cfg),{method:'POST',headers:atHdr(cfg),
+      body:JSON.stringify({records:[{fields:{'Session ID':sess.id,'Name':sess.name,'Icebreaker':sess.ice||'','Cards':JSON.stringify(sess.cards),'Actions':JSON.stringify(sess.actions)}}]})});
+    const d=await r.json();
+    return d.records?.[0]||null;
+  }catch(e){return null}
 }
 
 async function atUpdate(recordId,fields){
@@ -604,8 +608,14 @@ function initBoard(){
   // Show share banner for creators only
   const banner=document.getElementById('share-banner');
   const codeBig=document.getElementById('share-code-big');
-  if(!S.isJoining){codeBig.textContent=S.id;banner.style.display='flex'}
-  else{banner.style.display='none'}
+  if(!S.isJoining){
+    codeBig.textContent=S.id;banner.style.display='flex';
+    if(atCfg()){
+      const initSess={id:S.id,name:S.name,date:new Date().toISOString(),ice:S.ice,
+        cards:{well:[],better:[],next:[]},actions:[]};
+      atSave(initSess).then(r=>{if(r)S.atRecordId=r.id});
+    }
+  } else{banner.style.display='none'}
   renderBoard();updatePhaseUI();
 }
 
