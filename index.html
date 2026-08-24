@@ -306,6 +306,7 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
       <div class="participants" id="participants"></div>
       <button class="timer-btn" id="timer-btn" onclick="toggleTimer()" title="Start timer">▶</button>
       <div class="timer-display" id="timer-disp">10:00</div>
+      <button class="btn btn-ghost btn-sm" id="phase-back" onclick="handleBack()" style="display:none">← Back</button>
       <button class="btn btn-primary btn-sm" id="phase-cta" onclick="handleCta()">Reveal All</button>
     </div>
   </header>
@@ -764,16 +765,19 @@ function updatePhaseUI(){
   const ci=phases.indexOf(S.phase);
   document.querySelectorAll('.step').forEach(el=>{el.classList.remove('cur','past');const pi=phases.indexOf(el.dataset.p);if(pi===ci)el.classList.add('cur');else if(pi<ci)el.classList.add('past')});
   const cta=document.getElementById('phase-cta');
+  const back=document.getElementById('phase-back');
   const drawer=document.getElementById('actions-drawer');
   const inputs=['inp-well','inp-better','inp-next'];
   inputs.forEach(i=>document.getElementById(i).style.display=S.phase==='writing'?'':'none');
   drawer.style.display=S.phase==='actions'?'flex':'none';
   if(S.isJoining){
     cta.textContent='Submit My Cards →';cta.style.display='';
+    back.style.display='none';
     document.getElementById('timer-btn').style.display='none';
     document.getElementById('timer-disp').style.display='none';
     return;
   }
+  back.style.display=(S.phase==='writing'||S.phase==='done')?'none':'';
   if(S.phase==='writing'){cta.textContent='Reveal All';cta.style.display=''}
   else if(S.phase==='revealed'){cta.textContent='Start Voting →';cta.style.display='';inputs.forEach(i=>document.getElementById(i).style.display='none')}
   else if(S.phase==='voting'){cta.textContent='Add Action Items →';cta.style.display='';updDots()}
@@ -787,6 +791,13 @@ function handleCta(){
   else if(S.phase==='revealed')startVoting();
   else if(S.phase==='voting')startActions();
   else if(S.phase==='actions')finishRetro();
+}
+
+function handleBack(){
+  if(S.isJoining)return;
+  if(S.phase==='revealed'){S.phase='writing';renderBoard();updatePhaseUI();toast('Back to writing — cards are hidden again')}
+  else if(S.phase==='voting'){S.phase='revealed';S.dots=5;renderBoard();updatePhaseUI();toast('Back to revealed')}
+  else if(S.phase==='actions'){S.phase='voting';renderBoard();updatePhaseUI();toast('Back to voting')}
 }
 
 async function reveal(){
