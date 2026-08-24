@@ -180,6 +180,7 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .hr-name{font-weight:600;font-size:.9rem}.hr-meta{font-size:.75rem;color:var(--ink-2);margin-top:.15rem}
 .hr-chips{margin-left:auto;display:flex;gap:.4rem;flex-shrink:0}
 .chip{font-size:.72rem;padding:.18rem .5rem;border-radius:100px;background:var(--surface-2);color:var(--ink-2);font-weight:500}
+.history-del{display:none;border:none;background:transparent;font-size:.8rem;cursor:pointer;padding:.25rem .4rem;border-radius:4px;line-height:1;margin-left:.25rem}.history-del:hover{background:rgba(191,106,14,.15)}.history-row:hover .history-del{display:inline}
 /* Modal */
 .overlay{position:fixed;inset:0;background:rgba(28,25,23,.45);z-index:100;display:none;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(2px)}
 .overlay.open{display:flex}
@@ -941,7 +942,7 @@ function renderHistoryList(saved,list){
   list.innerHTML=saved.map((s,i)=>{
     const n=(s.cards?.well?.length||0)+(s.cards?.better?.length||0)+(s.cards?.next?.length||0);
     const d=new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    return`<div class="history-row" onclick="viewSession(${i})"><div><div class="hr-name">${esc(s.name)} ${s.ice||''}</div><div class="hr-meta">${d}</div></div><div class="hr-chips"><span class="chip">${n} cards</span><span class="chip">${s.actions?.length||0} actions</span></div></div>`;
+    return`<div class="history-row" onclick="viewSession(${i})"><div><div class="hr-name">${esc(s.name)} ${s.ice||''}</div><div class="hr-meta">${d}</div></div><div class="hr-chips"><span class="chip">${n} cards</span><span class="chip">${s.actions?.length||0} actions</span><button class="history-del" onclick="deleteSession(event,${i},'${s.id||''}')">🗑</button></div></div>`;
   }).join('');
 }
 
@@ -959,6 +960,29 @@ function viewSession(idx){
   S.demoIn=false;S.existingCards=null;
   try{buildSummary()}catch(e){console.error('buildSummary error',e)}
   show('s-summary');
+}
+
+async function deleteSession(e,idx,sessId){
+  e.stopPropagation();
+  if(!confirm('Delete this retro permanently?'))return;
+  const sess=_histList[idx];if(!sess)return;
+  // Remove from localStorage
+  try{
+    const saved=JSON.parse(localStorage.getItem('retro_v1')||'[]');
+    const filtered=saved.filter(s=>s.id!==sess.id);
+    localStorage.setItem('retro_v1',JSON.stringify(filtered));
+  }catch(e){}
+  // Remove from Airtable if it has a record ID
+  if(sessId&&atCfg()){
+    try{
+      const sess=await atLoadByCode(sessId);
+      if(sess?.airtableId){
+        await fetch(`https://api.airtable.com/v0/${atCfg().base}/Retros/${sess.airtableId}`,{method:'DELETE',headers:{Authorization:`Bearer ${atCfg().pat}`}});
+      }
+    }catch(e){}
+  }
+  toast('Retro deleted');
+  showHistory();
 }
 
 // ===== INIT =====
