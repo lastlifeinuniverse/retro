@@ -1072,6 +1072,21 @@ async function debugAirtableRetro(code){
   console.log('Megan cards:',allCards.filter(c=>c.author==='Megan'));
   return {atRecordId: rec.id, cards};
 }
+async function listAllRetros(){
+  const cfg=atCfg();if(!cfg){console.log('No Airtable config');return}
+  console.log('Loading all retros from Airtable...');
+  const r=await fetch(`https://api.airtable.com/v0/${cfg.base}/Retros?pageSize=100`,{headers:{Authorization:`Bearer ${cfg.pat}`}});
+  const d=await r.json();
+  if(d.error){console.error('Error:',d.error);return}
+  console.log('Found '+d.records.length+' retros:');
+  d.records.forEach(rec=>{
+    const code=rec.fields['Retro Code'];
+    const name=rec.fields['Name'];
+    const cards=JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}');
+    const authors=[...cards.well,...cards.better,...cards.next].map(c=>c.author);
+    console.log(`  [${code}] "${name}" — authors: ${[...new Set(authors)].join(', ')}`);
+  });
+}
 async function mergeRetroCards(code){
   const cfg=atCfg();if(!cfg){console.log('No Airtable config');return}
   // Get from localStorage
