@@ -482,15 +482,17 @@ async function atLoadByCode(code){
     const d=await r.json();
     if(!r.ok||!d.records?.length)return null;
     const rec=d.records[0];
+    let cards={well:[],better:[],next:[]},actions=[];
+    try{cards=JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}');}catch(e){console.warn('Bad Cards JSON for',rec.fields['Retro Code'])}
+    try{actions=JSON.parse(rec.fields['Actions']||'[]');}catch(e){console.warn('Bad Actions JSON for',rec.fields['Retro Code'])}
     return{
       airtableId:rec.id,
       id:rec.fields['Retro Code'],
       name:rec.fields['Name']||'Retro',
       ice:rec.fields['Icebreaker']||null,
-      cards:JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}'),
-      actions:JSON.parse(rec.fields['Actions']||'[]'),
+      cards,actions,
     };
-  }catch(e){return null}
+  }catch(e){console.error('atLoadByCode error:',e);return null}
 }
 
 async function atLoad(){
@@ -499,12 +501,13 @@ async function atLoad(){
     const r=await fetch(atUrl(cfg)+'?pageSize=50',{headers:{'Authorization':`Bearer ${cfg.pat}`}});
     const d=await r.json();
     if(!r.ok||d.error)return null;
-    return d.records.map(rec=>({
-      id:rec.fields['Retro Code']||'—',name:rec.fields['Name']||'Retro',date:rec.createdTime,
-      ice:rec.fields['Icebreaker']||null,
-      cards:JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}'),
-      actions:JSON.parse(rec.fields['Actions']||'[]'),
-    }));
+    return d.records.map(rec=>{
+      let cards={well:[],better:[],next:[]},actions=[];
+      try{cards=JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}');}catch(e){}
+      try{actions=JSON.parse(rec.fields['Actions']||'[]');}catch(e){}
+      return{id:rec.fields['Retro Code']||'—',name:rec.fields['Name']||'Retro',date:rec.createdTime,
+        ice:rec.fields['Icebreaker']||null,cards,actions};
+    });
   }catch(e){return null}
 }
 
@@ -1007,15 +1010,17 @@ async function viewSession(idx){
 
   // Try to fetch latest from Airtable if connected
   if(atCfg()&&S.id){
-    const latest=await atLoadByCode(S.id);
-    if(latest){
-      S.cards=latest.cards||{well:[],better:[],next:[]};
-      S.actions=latest.actions||[];
-      S.demoIn=false;S.existingCards=null;
-      try{buildSummary()}catch(e){console.error('buildSummary error',e)}
-      show('s-summary');
-      return;
-    }
+    try{
+      const latest=await atLoadByCode(S.id);
+      if(latest){
+        S.cards=latest.cards||{well:[],better:[],next:[]};
+        S.actions=latest.actions||[];
+        S.demoIn=false;S.existingCards=null;
+        try{buildSummary()}catch(e){console.error('buildSummary error',e)}
+        show('s-summary');
+        return;
+      }
+    }catch(e){console.error('Error loading from Airtable:',e);toast('Could not load from Airtable, using local copy')}
   }
 
   // Fallback to localStorage/passed session data
@@ -1059,17 +1064,27 @@ async function debugAirtableRetro(code){
   const cfg=atCfg();if(!cfg){console.log('No Airtable config');return}
   console.log('Searching for retro code:', code);
   const formula=encodeURIComponent(`{Retro Code}="${code}"`);
+  console.log('Formula used:',formula);
   const r=await fetch(`https://api.airtable.com/v0/${cfg.base}/Retros?filterByFormula=${formula}`,{headers:{Authorization:`Bearer ${cfg.pat}`}});
   const d=await r.json();
   if(d.error){console.error('Airtable error:',d.error);return}
-  if(!d.records?.length){console.log('No retro found with code:',code);return}
+  if(!d.records?.length){console.log('No retro found with code:',code,'— trying as number');
+    const formula2=encodeURIComponent(`{Retro Code}=${code}`);
+    const r2=await fetch(`https://api.airtable.com/v0/${cfg.base}/Retros?filterByFormula=${formula2}`,{headers:{Authorization:`Bearer ${cfg.pat}`}});
+    const d2=await r2.json();
+    if(d2.records?.length){console.log('Found using numeric query');return debugAirtableRetro(code);}
+    return;
+  }
   const rec=d.records[0];
-  console.log('Found retro:',rec.fields['Name']);
+  console.log('Found retro record ID:',rec.id);
+  console.log('Name:',rec.fields['Name']);
+  console.log('Retro Code field value:',rec.fields['Retro Code']);
+  console.log('Raw Cards JSON:',rec.fields['Cards']);
   const cards=JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}');
-  console.log('Cards data:',cards);
   const allCards=[...cards.well,...cards.better,...cards.next];
-  console.log('All authors:',allCards.map(c=>c.author));
-  console.log('Megan cards:',allCards.filter(c=>c.author==='Megan'));
+  console.log('Parsed cards count:',allCards.length);
+  console.log('All cards:',allCards);
+  console.log('Unique authors:',Array.from(new Set(allCards.map(c=>c.author))));
   return {atRecordId: rec.id, cards};
 }
 async function listAllRetros(){
