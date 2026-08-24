@@ -1070,6 +1070,35 @@ async function debugAirtableRetro(code){
   const allCards=[...cards.well,...cards.better,...cards.next];
   console.log('All authors:',allCards.map(c=>c.author));
   console.log('Megan cards:',allCards.filter(c=>c.author==='Megan'));
+  return {atRecordId: rec.id, cards};
+}
+async function mergeRetroCards(code){
+  const cfg=atCfg();if(!cfg){console.log('No Airtable config');return}
+  // Get from localStorage
+  const saved=JSON.parse(localStorage.getItem('retro_v1')||'[]');
+  const local=saved.find(s=>s.id===code);
+  if(!local){console.log('No local copy of retro '+code);return}
+  console.log('Local cards for',code+':', local.cards);
+  // Get from Airtable
+  const at=await debugAirtableRetro(code);
+  if(!at)return;
+  // Merge
+  const merged={
+    well:[...(local.cards?.well||[]),...(at.cards?.well||[])],
+    better:[...(local.cards?.better||[]),...(at.cards?.better||[])],
+    next:[...(local.cards?.next||[]),...(at.cards?.next||[])]
+  };
+  console.log('Merged cards:',merged);
+  console.log('All authors after merge:',
+    [...merged.well,...merged.better,...merged.next].map(c=>c.author)
+  );
+  // Save merged back to Airtable
+  const r=await fetch(`https://api.airtable.com/v0/${cfg.base}/Retros/${at.atRecordId}`,
+    {method:'PATCH',headers:{Authorization:`Bearer ${cfg.pat}`,'Content-Type':'application/json'},
+     body:JSON.stringify({fields:{Cards:JSON.stringify(merged)}})});
+  const d=await r.json();
+  if(r.ok){console.log('✓ Merged cards saved to Airtable')}
+  else{console.error('Failed to save:',d.error)}
 }
 
 // ===== INIT =====
