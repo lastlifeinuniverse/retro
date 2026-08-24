@@ -822,7 +822,14 @@ function startActions(){S.phase='actions';renderBoard();updatePhaseUI();setTimeo
 function finishRetro(){
   stopTimer();S.phase='done';
   const sess=saveSession();buildSummary();show('s-summary');
-  if(atCfg()){toast('Saving to Airtable…');atSave(sess).then(()=>toast('Saved to Airtable ✓'))}
+  if(atCfg()){
+    toast('Saving to Airtable…');
+    if(S.atRecordId){
+      atUpdate(S.atRecordId,{'Name':sess.name,'Icebreaker':sess.ice||'','Cards':JSON.stringify(sess.cards),'Actions':JSON.stringify(sess.actions)}).then(()=>toast('Saved to Airtable ✓'));
+    } else {
+      atSave(sess).then(r=>{if(r)S.atRecordId=r.id;toast('Saved to Airtable ✓')});
+    }
+  }
 }
 
 // ===== JOIN SUBMIT =====
@@ -1004,13 +1011,28 @@ function checkHistory(){
   document.getElementById('hist-btn').style.display=(hasLocal||!!atCfg())?'':'none';
 }
 
+function dedupeSessions(list){
+  const byCode={};
+  list.forEach(s=>{
+    const key=s.id||s.name;
+    const n=(s.cards?.well?.length||0)+(s.cards?.better?.length||0)+(s.cards?.next?.length||0);
+    const existing=byCode[key];
+    if(!existing)byCode[key]=s;
+    else{
+      const en=(existing.cards?.well?.length||0)+(existing.cards?.better?.length||0)+(existing.cards?.next?.length||0);
+      if(n>en||(n===en&&new Date(s.date)>new Date(existing.date)))byCode[key]=s;
+    }
+  });
+  return Object.values(byCode);
+}
+
 async function showHistory(){
   show('s-history');
   const loading=document.getElementById('history-loading'),list=document.getElementById('history-list');
   list.innerHTML='';
-  if(atCfg()){loading.style.display='block';const r=await atLoad();loading.style.display='none';if(r&&r.length){renderHistoryList(r,list);return}}
+  if(atCfg()){loading.style.display='block';const r=await atLoad();loading.style.display='none';if(r&&r.length){renderHistoryList(dedupeSessions(r),list);return}}
   let saved=[];try{saved=JSON.parse(localStorage.getItem('retro_v1')||'[]')}catch(e){}
-  renderHistoryList(saved,list);
+  renderHistoryList(dedupeSessions(saved),list);
 }
 
 let _histList=[];
@@ -1069,23 +1091,29 @@ async function deleteSelectedSessions(){
     const filtered=saved.filter(s=>!idsToDelete.has(s.id));
     localStorage.setItem('retro_v1',JSON.stringify(filtered));
   }catch(e){}
-  // Remove from Airtable
+  // Remove from Airtable (deletes ALL matching records, in case of duplicates)
   if(atCfg()){
     for(const s of sessions){
       if(!s.id)continue;
-      try{
-        const rec=await atLoadByCode(s.id);
-        if(rec?.airtableId){
-          await fetch(`https://api.airtable.com/v0/${atCfg().base}/Retros/${rec.airtableId}`,{method:'DELETE',headers:{Authorization:`Bearer ${atCfg().pat}`}});
-        }
-      }catch(e){}
+      try{await deleteAllAirtableRecordsByCode(s.id)}catch(e){}
     }
   }
-  toast(`${sessions.length} retro(s) deleted`);
   _histSelectMode=false;_histSelected.clear();
   document.getElementById('hist-select-btn').textContent='☑ Select';
   document.getElementById('hist-bulk-bar').style.display='none';
-  showHistory();
+  await showHistory();
+  toast(`${sessions.length} retro(s) deleted`);
+}
+
+async function deleteAllAirtableRecordsByCode(code){
+  const cfg=atCfg();if(!cfg)return;
+  const formula=encodeURIComponent(`{Retro Code}="${code}"`);
+  const r=await fetch(`https://api.airtable.com/v0/${cfg.base}/Retros?filterByFormula=${formula}&pageSize=100`,{headers:{Authorization:`Bearer ${cfg.pat}`}});
+  const d=await r.json();
+  if(!d.records?.length)return;
+  for(const rec of d.records){
+    await fetch(`https://api.airtable.com/v0/${cfg.base}/Retros/${rec.id}`,{method:'DELETE',headers:{Authorization:`Bearer ${cfg.pat}`}});
+  }
 }
 
 async function viewSession(idx){
@@ -1131,14 +1159,9 @@ async function deleteSession(e,idx,sessId){
     const filtered=saved.filter(s=>s.id!==sess.id);
     localStorage.setItem('retro_v1',JSON.stringify(filtered));
   }catch(e){}
-  // Remove from Airtable if it has a record ID
+  // Remove from Airtable (all matching records, in case of duplicates)
   if(sessId&&atCfg()){
-    try{
-      const sess=await atLoadByCode(sessId);
-      if(sess?.airtableId){
-        await fetch(`https://api.airtable.com/v0/${atCfg().base}/Retros/${sess.airtableId}`,{method:'DELETE',headers:{Authorization:`Bearer ${atCfg().pat}`}});
-      }
-    }catch(e){}
+    try{await deleteAllAirtableRecordsByCode(sessId)}catch(e){}
   }
   toast('Retro deleted');
   showHistory();
