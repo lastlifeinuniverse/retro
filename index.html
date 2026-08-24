@@ -130,6 +130,7 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .r-chip:hover{border-color:var(--border-strong)}.r-chip.on{background:var(--next-bg);border-color:var(--next-border);color:var(--next-accent)}
 .add-r{background:none;border:1px solid var(--border);border-radius:100px;padding:.12rem .4rem;font-size:.72rem;color:var(--ink-3);cursor:pointer;transition:all .11s;line-height:1.4}
 .add-r:hover{border-color:var(--border-strong);color:var(--ink)}
+.card-edit{display:none;border:none;background:transparent;color:var(--ink-3);font-size:.75rem;padding:.1rem .3rem;border-radius:4px;line-height:1;cursor:pointer;margin-right:.2rem}.card-edit:hover{background:var(--next-bg);color:var(--next-accent)}.card:hover .card-edit{display:inline-flex}
 .card-del{display:none;border:none;background:transparent;color:var(--ink-3);font-size:.75rem;padding:.1rem .3rem;border-radius:4px;line-height:1;cursor:pointer;margin-left:auto}.card-del:hover{background:var(--better-bg);color:var(--better-accent)}.card:hover .card-del{display:inline-flex}
 .vote-btn{display:inline-flex;align-items:center;gap:.22rem;padding:.15rem .48rem;border-radius:100px;border:1.5px solid var(--border-strong);background:transparent;font-size:.72rem;color:var(--ink-2);font-weight:500;transition:all .11s;line-height:1.4}
 .vote-btn:hover:not(:disabled){border-color:var(--btn-bg);color:var(--ink)}
@@ -154,8 +155,11 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .action-item.done .ai-check::after{content:'✓';color:#fff;font-size:.56rem;font-weight:700}
 .action-item.done .ai-txt{text-decoration:line-through;color:var(--ink-3)}
 .ai-txt{flex:1;color:var(--ink)}.ai-meta{font-size:.7rem;color:var(--ink-3);white-space:nowrap}
-.ai-del{background:none;border:none;color:var(--ink-3);opacity:0;transition:opacity .13s;padding:2px;font-size:.75rem;line-height:1}
+.ai-edit{background:none;border:none;color:var(--ink-3);opacity:0;transition:opacity .13s;padding:2px;font-size:.75rem;line-height:1;cursor:pointer}
+.action-item:hover .ai-edit{opacity:1}
+.ai-del{background:none;border:none;color:var(--ink-3);opacity:0;transition:opacity .13s;padding:2px;font-size:.75rem;line-height:1;cursor:pointer}
 .action-item:hover .ai-del{opacity:1}
+.ai-edit-input{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:.3rem .4rem;font-size:.78rem;color:var(--ink)}
 /* Summary */
 .summary-body{flex:1;padding:2rem;max-width:740px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:1.25rem}
 .sum-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
@@ -668,8 +672,9 @@ function cardHtml(c,mine,phase){
   if(phase==='voting'){const dis=S.dots<=0&&!c.myV;voteHtml=`<button class="vote-btn${c.myV?' voted':''}" onclick="vote('${c.id}')"${dis?' disabled':''}>${c.myV?'●':'○'} ${c.votes||0}</button>`}
   else if((phase==='actions'||phase==='done')&&(c.votes||0)>0){voteHtml=`<span class="vote-count">● ${c.votes}</span>`}
   const label=mine?'you':esc(c.author);
+  const editBtn=mine&&phase==='writing'?`<button class="card-edit" onclick="editCard(event,'${c.id}')" title="Edit">✎</button>`:'';
   const delBtn=mine&&phase==='writing'?`<button class="card-del" onclick="removeCard('${c.id}')" title="Delete">✕</button>`:'';
-  return`<div class="card" id="card-${c.id}"><div class="card-text">${esc(c.text)}</div><div class="card-foot"><div class="card-author${mine?' you':''}">${label}</div><div class="reactions">${rHtml}${addBtn}</div>${voteHtml}${delBtn}</div></div>`;
+  return`<div class="card" id="card-${c.id}"><div class="card-text">${esc(c.text)}</div><div class="card-foot"><div class="card-author${mine?' you':''}">${label}</div><div class="reactions">${rHtml}${addBtn}</div>${voteHtml}${editBtn}${delBtn}</div></div>`;
 }
 
 function taKey(e,col){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addCard(col)}const ta=e.target;ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,88)+'px'}
@@ -685,6 +690,30 @@ function removeCard(id){
   if(S.phase!=='writing')return;
   ['well','better','next'].forEach(col=>{S.cards[col]=S.cards[col].filter(c=>c.id!==id)});
   renderBoard();
+}
+function editCard(e,id){
+  e.stopPropagation();
+  if(S.phase!=='writing')return;
+  let card=null;
+  ['well','better','next'].forEach(col=>{const c=S.cards[col].find(x=>x.id===id);if(c)card=c});
+  if(!card)return;
+  const cardEl=document.getElementById('card-'+id);
+  const textEl=cardEl.querySelector('.card-text');
+  const origText=card.text;
+  textEl.innerHTML=`<textarea class="card-edit-ta" style="width:100%;min-height:60px;border:1.5px solid var(--next-accent);border-radius:var(--r-sm);padding:.5rem;font-family:inherit;font-size:inherit;color:var(--ink);background:var(--surface-2);resize:vertical">${esc(origText)}</textarea><div style="display:flex;gap:.3rem;margin-top:.35rem"><button class="btn btn-sm btn-primary" onclick="saveCardEdit('${id}')">Save</button><button class="btn btn-sm btn-ghost" onclick="cancelCardEdit('${id}','${origText.replace(/'/g,"\\'")}')">Cancel</button></div>`;
+  cardEl.querySelector('.card-edit-ta').focus();
+}
+function saveCardEdit(id){
+  const cardEl=document.getElementById('card-'+id);
+  const ta=cardEl.querySelector('.card-edit-ta');
+  if(!ta)return;
+  const newText=ta.value.trim();
+  if(!newText)return;
+  ['well','better','next'].forEach(col=>{const c=S.cards[col].find(x=>x.id===id);if(c)c.text=newText});
+  renderCol(['well','better','next'].find(col=>S.cards[col].find(x=>x.id===id)));
+}
+function cancelCardEdit(id,origText){
+  renderCol(['well','better','next'].find(col=>S.cards[col].find(x=>x.id===id)));
 }
 function startAirtableSync(){
   if(!atCfg()||S.isJoining)return;
@@ -839,12 +868,37 @@ function addAction(){
 }
 function toggleAction(id){const a=S.actions.find(x=>x.id===id);if(a){a.done=!a.done;renderActions()}}
 function delAction(id){S.actions=S.actions.filter(x=>x.id!==id);renderActions()}
+function editAction(id){
+  const a=S.actions.find(x=>x.id===id);if(!a)return;
+  const item=document.getElementById('ai-'+id);
+  const origText=a.text,origOwner=a.owner,origDue=a.due||'';
+  item.innerHTML=`
+    <div class="ai-check" onclick="toggleAction('${id}')"></div>
+    <input class="ai-edit-input" type="text" value="${esc(origText)}" placeholder="What will happen?" style="flex:2;min-width:140px">
+    <input class="ai-edit-input" type="text" value="${esc(origOwner)}" placeholder="Owner" style="flex:1;min-width:100px;max-width:130px">
+    <input class="ai-edit-input" type="date" value="${origDue}" style="flex:1;min-width:110px;max-width:140px">
+    <button class="btn btn-sm btn-primary" onclick="saveActionEdit('${id}')">Save</button>
+    <button class="btn btn-sm btn-ghost" onclick="cancelActionEdit('${id}')">Cancel</button>
+  `;
+  item.querySelector('.ai-edit-input').focus();
+}
+function saveActionEdit(id){
+  const a=S.actions.find(x=>x.id===id);if(!a)return;
+  const item=document.getElementById('ai-'+id);
+  const inputs=item.querySelectorAll('.ai-edit-input');
+  const text=inputs[0].value.trim(),owner=inputs[1].value.trim()||S.user,due=inputs[2].value;
+  if(!text)return;
+  a.text=text;a.owner=owner;a.due=due;
+  renderActions();
+}
+function cancelActionEdit(id){renderActions()}
 function renderActions(){
   document.getElementById('action-list').innerHTML=S.actions.map(a=>`
-    <div class="action-item${a.done?' done':''}">
+    <div class="action-item${a.done?' done':''}" id="ai-${a.id}">
       <div class="ai-check" onclick="toggleAction('${a.id}')"></div>
       <span class="ai-txt">${esc(a.text)}</span>
       <span class="ai-meta">👤 ${esc(a.owner)}${a.due?' · '+fmtDate(a.due):''}</span>
+      <button class="ai-edit" onclick="editAction('${a.id}')" title="Edit">✎</button>
       <button class="ai-del" onclick="delAction('${a.id}')">✕</button>
     </div>`).join('');
 }
