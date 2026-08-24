@@ -1054,6 +1054,24 @@ async function deleteSession(e,idx,sessId){
   showHistory();
 }
 
+// ===== DEBUG =====
+async function debugAirtableRetro(code){
+  const cfg=atCfg();if(!cfg){console.log('No Airtable config');return}
+  console.log('Searching for retro code:', code);
+  const formula=encodeURIComponent(`{Retro Code}="${code}"`);
+  const r=await fetch(`https://api.airtable.com/v0/${cfg.base}/Retros?filterByFormula=${formula}`,{headers:{Authorization:`Bearer ${cfg.pat}`}});
+  const d=await r.json();
+  if(d.error){console.error('Airtable error:',d.error);return}
+  if(!d.records?.length){console.log('No retro found with code:',code);return}
+  const rec=d.records[0];
+  console.log('Found retro:',rec.fields['Name']);
+  const cards=JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}');
+  console.log('Cards data:',cards);
+  const allCards=[...cards.well,...cards.better,...cards.next];
+  console.log('All authors:',allCards.map(c=>c.author));
+  console.log('Megan cards:',allCards.filter(c=>c.author==='Megan'));
+}
+
 // ===== INIT =====
 document.addEventListener('click',e=>{if(!e.target.closest('#r-picker')&&!e.target.closest('.add-r'))closeR()});
 const _st=document.createElement('style');
