@@ -637,7 +637,7 @@ function initBoard(){
   renderBoard();updatePhaseUI();
 }
 
-function allCards(col){return[...S.cards[col],...(S.demoIn?DEMO[col]:[])]}
+function allCards(col){return[...S.cards[col],...(S.existingCards?S.existingCards[col]:[]),...(S.demoIn?DEMO[col]:[])]}
 
 function renderBoard(){['well','better','next'].forEach(c=>renderCol(c))}
 
@@ -1000,10 +1000,25 @@ function renderHistoryList(saved,list){
   }).join('');
 }
 
-function viewSession(idx){
+async function viewSession(idx){
   const sess=_histList[idx];
   if(!sess){toast('Could not load session');return}
   S.name=sess.name||'Retro';S.id=sess.id||'';S.ice=sess.ice||null;
+
+  // Try to fetch latest from Airtable if connected
+  if(atCfg()&&S.id){
+    const latest=await atLoadByCode(S.id);
+    if(latest){
+      S.cards=latest.cards||{well:[],better:[],next:[]};
+      S.actions=latest.actions||[];
+      S.demoIn=false;S.existingCards=null;
+      try{buildSummary()}catch(e){console.error('buildSummary error',e)}
+      show('s-summary');
+      return;
+    }
+  }
+
+  // Fallback to localStorage/passed session data
   const c=sess.cards;
   S.cards={
     well:Array.isArray(c?.well)?c.well:[],
