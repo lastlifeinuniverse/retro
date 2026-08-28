@@ -277,7 +277,28 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .submitted-icon{font-size:3rem}
 .submitted-title{font-size:1.375rem;font-weight:700}
 .submitted-sub{font-size:.9rem;color:var(--ink-2);max-width:340px;line-height:1.6}
-@media(max-width:680px){.board-body{grid-template-columns:1fr;overflow-y:auto}.col{min-height:280px}.phase-steps{display:none}.board-name{max-width:120px}}
+@media(max-width:680px){
+  .board-body{grid-template-columns:1fr;overflow-y:auto;gap:1rem;padding:.75rem}
+  .col{min-height:320px}
+  .phase-steps{display:none}
+  .board-name{max-width:120px}
+  .board-hdr{height:auto;min-height:56px;flex-wrap:wrap;padding:.5rem .75rem;gap:.5rem}
+  .hdr-right{width:100%;justify-content:space-between}
+  .col-hdr{padding:.75rem .875rem;font-size:.88rem}
+  .col-input-area{padding:.65rem .75rem}
+  .col-ta{font-size:16px;min-height:44px;padding:.65rem .75rem;line-height:1.45}
+  .col-add{width:42px;height:42px;font-size:1.3rem;border-radius:var(--r)}
+  .timer-btn{width:34px;height:34px}
+  .session-code{font-size:.76rem;padding:.28rem .6rem}
+  .card{padding:.75rem}
+  .card-text{font-size:.9rem}
+  .actions-drawer{max-height:none}
+  .action-form{gap:.5rem}
+  .action-form input{font-size:16px;padding:.65rem .75rem;min-height:44px}
+  .ai-text,.ai-owner,.ai-due{flex:1 1 100%;max-width:none}
+  .action-item{padding:.6rem .65rem}
+  .field input,.field textarea{font-size:16px;padding:.7rem .85rem;min-height:44px}
+}
 @media(max-width:520px){
   .hist-stats-row{grid-template-columns:1fr 1fr 1fr;gap:.5rem}
   .hist-stat{padding:.65rem .7rem}.hist-stat-num{font-size:1.15rem}.hist-stat-label{font-size:.66rem}
@@ -791,12 +812,13 @@ function cardHtml(c,mine,phase){
 
 function taKey(e,col){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addCard(col)}const ta=e.target;ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,88)+'px'}
 function addCard(col){
-  if(S.phase!=='writing')return;
+  if(S.phase==='done')return;
   const ta=document.getElementById('ta-'+col);
   const text=ta.value.trim();if(!text)return;
   S.cards[col].push({id:genId(),text,author:S.user,reactions:{},myR:{},votes:0,myV:false});
   ta.value='';ta.style.height='auto';renderCol(col);
   const c=document.getElementById('cards-'+col);c.scrollTop=c.scrollHeight;
+  if(S.phase!=='writing')toast('Added — don\'t forget to mention it to the group!');
 }
 function removeCard(id){
   if(S.phase!=='writing')return;
@@ -876,7 +898,8 @@ function updatePhaseUI(){
   const back=document.getElementById('phase-back');
   const drawer=document.getElementById('actions-drawer');
   const inputs=['inp-well','inp-better','inp-next'];
-  inputs.forEach(i=>document.getElementById(i).style.display=S.phase==='writing'?'':'none');
+  const showInputs=S.phase==='writing'||S.phase==='revealed'||S.phase==='voting'||S.phase==='actions';
+  inputs.forEach(i=>document.getElementById(i).style.display=showInputs?'':'none');
   drawer.style.display=S.phase==='actions'?'flex':'none';
   if(S.isJoining){
     cta.textContent='Submit My Cards →';cta.style.display='';
@@ -887,7 +910,7 @@ function updatePhaseUI(){
   }
   back.style.display=(S.phase==='writing'||S.phase==='done')?'none':'';
   if(S.phase==='writing'){cta.textContent='Reveal All';cta.style.display=''}
-  else if(S.phase==='revealed'){cta.textContent='Start Voting →';cta.style.display='';inputs.forEach(i=>document.getElementById(i).style.display='none')}
+  else if(S.phase==='revealed'){cta.textContent='Start Voting →';cta.style.display=''}
   else if(S.phase==='voting'){cta.textContent='Add Action Items →';cta.style.display='';updDots()}
   else if(S.phase==='actions'){cta.textContent='Finish Retro →';cta.style.display=''}
   else{cta.style.display='none'}
@@ -1147,10 +1170,32 @@ function checkJoinLink(){
   }catch(e){}
 }
 function buildExportText(){
-  const all={well:allCards('well').sort((a,b)=>(b.votes||0)-(a.votes||0)),better:allCards('better').sort((a,b)=>(b.votes||0)-(a.votes||0)),next:allCards('next').sort((a,b)=>(b.votes||0)-(a.votes||0))};
   const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  let t=`${S.name} — Retrospective\n${today}\n\n✨ WENT WELL\n${all.well.map(c=>`• ${c.text}${c.votes?' ('+c.votes+' votes)':''}`).join('\n')||'(none)'}\n\n🔧 COULD BE BETTER\n${all.better.map(c=>`• ${c.text}${c.votes?' ('+c.votes+' votes)':''}`).join('\n')||'(none)'}\n\n🚀 WHAT'S NEXT\n${all.next.map(c=>`• ${c.text}${c.votes?' ('+c.votes+' votes)':''}`).join('\n')||'(none)'}`;
-  if(S.actions.length)t+=`\n\n📋 ACTION ITEMS\n${S.actions.map(a=>`• [${a.done?'x':' '}] ${a.text} (${a.owner}${a.due?' · '+fmtDate(a.due):''})`).join('\n')}`;
+  const tagged=[];
+  ['well','better','next'].forEach(col=>{
+    S.cards[col].forEach(c=>tagged.push({...c,col}));
+    if(S.existingCards)S.existingCards[col].forEach(c=>tagged.push({...c,col}));
+    if(S.demoIn)DEMO[col].forEach(c=>tagged.push({...c,col}));
+  });
+  tagged.forEach(c=>{if(c.author==='you')c.author=S.user});
+  const byAuthor={};
+  tagged.forEach(c=>{if(!byAuthor[c.author])byAuthor[c.author]=[];byAuthor[c.author].push(c)});
+  const authors=Object.keys(byAuthor).sort((a,b)=>{if(a===S.user)return -1;if(b===S.user)return 1;return a.localeCompare(b)});
+
+  let t=`${S.name} — Retrospective\n${today}`;
+  if(!tagged.length)t+='\n\n(No cards were added.)';
+  authors.forEach(author=>{
+    const cards=byAuthor[author];
+    const byCol={well:[],better:[],next:[]};
+    cards.forEach(c=>byCol[c.col].push(c));
+    t+=`\n\n———\n👤 ${author}${author===S.user?' (you)':''}`;
+    ['well','better','next'].forEach(col=>{
+      if(!byCol[col].length)return;
+      const label=col==='well'?'✨ Went Well':col==='better'?'🔧 Could Be Better':"🚀 What's Next";
+      t+=`\n${label}\n${byCol[col].map(c=>`  • ${c.text}${c.votes?' ('+c.votes+' votes)':''}`).join('\n')}`;
+    });
+  });
+  if(S.actions.length)t+=`\n\n———\n📋 ACTION ITEMS\n${S.actions.map(a=>`• [${a.done?'x':' '}] ${a.text} (${a.owner}${a.due?' · '+fmtDate(a.due):''})`).join('\n')}`;
   return t;
 }
 function copyExport(){
@@ -1160,8 +1205,8 @@ function emailExport(){
   const subject=encodeURIComponent(`${S.name} — Retrospective Summary`);
   const body=encodeURIComponent(buildExportText());
   const mailto=`mailto:?subject=${subject}&body=${body}`;
-  if(mailto.length>1800){
-    toast('Summary too long for email — copying to clipboard instead');
+  if(mailto.length>6000){
+    toast('Summary too long for a mailto link — copying to clipboard instead. Paste it into your email.');
     copyExport();
     return;
   }
@@ -1170,7 +1215,7 @@ function emailExport(){
 function whatsappExport(){
   const text=encodeURIComponent(buildExportText());
   const url=`https://wa.me/?text=${text}`;
-  if(url.length>3800){
+  if(url.length>6000){
     toast('Summary too long for WhatsApp — copying to clipboard instead');
     copyExport();
     return;
