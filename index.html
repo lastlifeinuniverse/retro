@@ -155,6 +155,7 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .action-item.done .ai-check::after{content:'✓';color:#fff;font-size:.56rem;font-weight:700}
 .action-item.done .ai-txt{text-decoration:line-through;color:var(--ink-3)}
 .ai-txt{flex:1;color:var(--ink)}.ai-meta{font-size:.7rem;color:var(--ink-3);white-space:nowrap}
+.ai-from{display:block;font-size:.68rem;color:var(--next-accent);font-weight:500;margin-top:.1rem}
 .ai-edit{background:none;border:none;color:var(--ink-3);opacity:0;transition:opacity .13s;padding:2px;font-size:.75rem;line-height:1;cursor:pointer}
 .action-item:hover .ai-edit{opacity:1}
 .ai-del{background:none;border:none;color:var(--ink-3);opacity:0;transition:opacity .13s;padding:2px;font-size:.75rem;line-height:1;cursor:pointer}
@@ -171,7 +172,14 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .sum-row{display:flex;align-items:baseline;gap:.5rem;padding:.32rem 0;border-bottom:1px solid var(--border);font-size:.825rem}
 .sum-row:last-child{border-bottom:none}
 .sum-votes{font-size:.7rem;color:var(--ink-3);flex-shrink:0;min-width:24px;font-variant-numeric:tabular-nums}
-.sum-author{font-size:.7rem;color:var(--ink-3);margin-left:auto;flex-shrink:0}
+.sum-author{font-size:.7rem;color:var(--ink-3);margin-left:.5rem}
+.sum-from{font-size:.68rem;color:var(--next-accent);font-weight:500;margin-top:.15rem}
+.sum-row-action{align-items:flex-start}
+.ai-status-btn{font-size:.72rem;padding:.28rem .6rem;border-radius:100px;border:1.5px solid var(--border-strong);background:transparent;color:var(--ink-2);font-weight:500;cursor:pointer;white-space:nowrap;transition:all .13s}
+.ai-status-btn:hover{border-color:var(--well-accent);color:var(--well-accent)}
+.ai-status-btn.done{background:var(--well-bg);border-color:var(--well-border);color:var(--well-accent)}
+.ai-carry-btn{font-size:.72rem;padding:.28rem .6rem;border-radius:100px;border:1.5px solid var(--border-strong);background:transparent;color:var(--ink-2);font-weight:500;cursor:pointer;white-space:nowrap;transition:all .13s}
+.ai-carry-btn:hover{border-color:var(--next-accent);color:var(--next-accent);background:var(--next-bg)}
 .col-sub-hdr{font-size:.7rem;font-weight:600;padding:.35rem 0 .2rem;margin-top:.4rem;border-top:1px solid var(--border)}
 .col-sub-hdr:first-child{margin-top:0;border-top:none}
 .col-sub-hdr.well{color:var(--well-accent)}.col-sub-hdr.better{color:var(--better-accent)}.col-sub-hdr.next{color:var(--next-accent)}
@@ -434,7 +442,7 @@ const S={
   actions:[], dots:5,
   timerSec:600, timerInt:null,
   demoIn:false, isJoining:false, atRecordId:null,
-  rTarget:null, syncInt:null,
+  rTarget:null, syncInt:null, viewingPast:false,
 };
 
 const DEMO={
@@ -605,7 +613,7 @@ async function startSetup(){
     btn.textContent='Join Session →';btn.disabled=false;
     if(!sess){showSetupErr('Session not found. Check the code and try again.');return}
     S.id=sess.id;S.name=sess.name;S.atRecordId=sess.airtableId;
-    S.user=user;S.isJoining=true;S.demoIn=false;
+    S.user=user;S.isJoining=true;S.demoIn=false;S.viewingPast=false;
     S.existingCards=sess.cards;
     S.cards={well:[],better:[],next:[]};
     S.actions=[];S.phase='writing';S.dots=5;
@@ -613,7 +621,8 @@ async function startSetup(){
   } else {
     S.name=document.getElementById('i-sname').value.trim()||'Sprint Retro';
     S.id=genCode();S.user=user;S.isJoining=false;S.atRecordId=null;S.existingCards=null;
-    S.cards={well:[],better:[],next:[]};S.actions=[];S.phase='writing';S.dots=5;S.demoIn=false;
+    S.cards={well:[],better:[],next:[]};S.phase='writing';S.dots=5;S.demoIn=false;S.viewingPast=false;
+    S.actions=loadCarriedActions();
     Object.values(DEMO).flat().forEach(c=>{c.reactions={};c.myR={};c.votes=0;c.myV=false});
     showIce();
   }
@@ -626,7 +635,10 @@ function showIce(){
   document.getElementById('sel-emoji').textContent='—';S.ice=null;show('s-ice');
 }
 function selEmoji(e){S.ice=e;document.getElementById('sel-emoji').textContent=e;document.querySelectorAll('.emoji-btn').forEach(b=>b.classList.toggle('sel',b.textContent===e))}
-function finishIce(){initBoard();show('s-board')}
+function finishIce(){
+  initBoard();show('s-board');
+  if(S.actions.length)toast(`↷ ${S.actions.length} action item(s) carried over from your last retro`);
+}
 
 // ===== BOARD =====
 function initBoard(){
@@ -819,7 +831,7 @@ async function reveal(){
   toast(`✨ ${t} cards revealed!`);setTimeout(celebrate,150);
 }
 function startVoting(){S.phase='voting';renderBoard();updatePhaseUI();toast('5 dots — vote for what matters most')}
-function startActions(){S.phase='actions';renderBoard();updatePhaseUI();setTimeout(()=>document.getElementById('ai-text').focus(),100)}
+function startActions(){S.phase='actions';renderBoard();updatePhaseUI();renderActions();setTimeout(()=>document.getElementById('ai-text').focus(),100)}
 function finishRetro(){
   stopTimer();S.phase='done';
   const sess=saveSession();buildSummary();show('s-summary');
@@ -928,7 +940,7 @@ function renderActions(){
   document.getElementById('action-list').innerHTML=S.actions.map(a=>`
     <div class="action-item${a.done?' done':''}" id="ai-${a.id}">
       <div class="ai-check" onclick="toggleAction('${a.id}')"></div>
-      <span class="ai-txt">${esc(a.text)}</span>
+      <span class="ai-txt">${esc(a.text)}${a.fromRetro?`<span class="ai-from">↳ from ${esc(a.fromRetro)}</span>`:''}</span>
       <span class="ai-meta">👤 ${esc(a.owner)}${a.due?' · '+fmtDate(a.due):''}</span>
       <button class="ai-edit" onclick="editAction('${a.id}')" title="Edit">✎</button>
       <button class="ai-del" onclick="delAction('${a.id}')">✕</button>
@@ -937,6 +949,53 @@ function renderActions(){
 
 // ===== SUMMARY =====
 const COL_META={well:{label:'✨ Went Well',cls:'well'},better:{label:'🔧 Could Be Better',cls:'better'},next:{label:"🚀 What's Next",cls:'next'}};
+
+const MOTIVATION_MSGS=['🎉 Nice work — that\'s done!','💪 One less thing to worry about!','✨ Progress! Keep it up.','🙌 Great follow-through!','🔥 Knocked it out — well done!'];
+
+async function persistPastRetroActions(){
+  // Save to localStorage
+  try{
+    const saved=JSON.parse(localStorage.getItem('retro_v1')||'[]');
+    const idx=saved.findIndex(s=>s.id===S.id);
+    if(idx>=0){saved[idx].actions=S.actions;localStorage.setItem('retro_v1',JSON.stringify(saved))}
+  }catch(e){}
+  // Save to Airtable
+  if(atCfg()&&S.atRecordId){
+    try{await atUpdate(S.atRecordId,{'Actions':JSON.stringify(S.actions)})}catch(e){}
+  }
+}
+
+function toggleSummaryAction(id){
+  const a=S.actions.find(x=>x.id===id);if(!a)return;
+  a.done=!a.done;
+  if(a.done){
+    const msg=MOTIVATION_MSGS[Math.floor(Math.random()*MOTIVATION_MSGS.length)];
+    toast(msg);
+    setTimeout(celebrate,100);
+  }
+  buildSummary();
+  persistPastRetroActions();
+}
+
+function carryForwardAction(id){
+  const a=S.actions.find(x=>x.id===id);if(!a)return;
+  const queue=loadCarryQueue();
+  if(queue.find(q=>q.origId===id+'-'+S.id)){toast('Already queued for next retro');return}
+  queue.push({id:genId(),origId:id+'-'+S.id,text:a.text,owner:a.owner,fromRetro:S.name});
+  localStorage.setItem('retro_carry',JSON.stringify(queue));
+  toast('Added to next retro\'s action items ↷');
+}
+
+function loadCarryQueue(){
+  try{return JSON.parse(localStorage.getItem('retro_carry')||'[]')}catch(e){return[]}
+}
+
+function loadCarriedActions(){
+  const queue=loadCarryQueue();
+  if(!queue.length)return[];
+  localStorage.removeItem('retro_carry');
+  return queue.map(q=>({id:genId(),text:q.text,owner:q.owner,due:'',done:false,fromRetro:q.fromRetro}));
+}
 
 function buildSummary(){
   document.getElementById('sum-title').textContent=S.name;
@@ -960,7 +1019,18 @@ function buildSummary(){
     return`<div class="sum-section"><div class="sum-sec-hdr"><span>${isMe?'👤':'🙋'} ${esc(author)}</span>${isMe?'<span style="font-size:.7rem;color:var(--ink-3);font-weight:400">(you)</span>':''}<span style="margin-left:auto;font-size:.7rem;color:var(--ink-3);font-weight:400">${cards.length} card${cards.length!==1?'s':''}</span></div><div class="sum-sec-body">${colsHtml}</div></div>`;
   }).join('');
   if(!tagged.length)html='<div style="color:var(--ink-3);font-size:.875rem">No cards were added.</div>';
-  if(S.actions.length){html+=`<div class="sum-section"><div class="sum-sec-hdr">📋 Action Items</div><div class="sum-sec-body">${S.actions.map(a=>`<div class="sum-row"><span style="font-size:.8rem">${a.done?'✅':'⬜'}</span><span>${esc(a.text)}</span><span class="sum-author">👤 ${esc(a.owner)}${a.due?' · '+fmtDate(a.due):''}</span></div>`).join('')}</div></div>`}
+  if(S.actions.length){
+    const interactive=S.viewingPast;
+    html+=`<div class="sum-section"><div class="sum-sec-hdr">📋 Action Items</div><div class="sum-sec-body">${S.actions.map(a=>{
+      const fromNote=a.fromRetro?`<div class="sum-from">↳ from ${esc(a.fromRetro)}</div>`:'';
+      if(interactive){
+        const statusBtn=`<button class="ai-status-btn${a.done?' done':''}" onclick="toggleSummaryAction('${a.id}')">${a.done?'✅ Completed':'⬜ Mark done'}</button>`;
+        const carryBtn=!a.done?`<button class="ai-carry-btn" onclick="carryForwardAction('${a.id}')">↷ Carry to next retro</button>`:'';
+        return`<div class="sum-row sum-row-action" id="sumai-${a.id}"><div style="flex:1"><span>${esc(a.text)}</span><span class="sum-author">👤 ${esc(a.owner)}${a.due?' · '+fmtDate(a.due):''}</span>${fromNote}</div><div style="display:flex;gap:.35rem;flex-shrink:0">${statusBtn}${carryBtn}</div></div>`;
+      }
+      return`<div class="sum-row"><span style="font-size:.8rem">${a.done?'✅':'⬜'}</span><span>${esc(a.text)}</span><span class="sum-author">👤 ${esc(a.owner)}${a.due?' · '+fmtDate(a.due):''}</span>${fromNote}</div>`;
+    }).join('')}</div></div>`;
+  }
   document.getElementById('sum-body').innerHTML=html;
 }
 
@@ -1136,6 +1206,8 @@ async function viewSession(idx){
   if(!sess){toast('Could not load session');return}
   S.name=sess.name||'Retro';S.id=sess.id||'';S.ice=sess.ice||null;
 
+  S.viewingPast=true;S.atRecordId=null;
+
   // Try to fetch latest from Airtable if connected
   if(atCfg()&&S.id){
     try{
@@ -1144,6 +1216,7 @@ async function viewSession(idx){
         S.cards=latest.cards||{well:[],better:[],next:[]};
         S.actions=latest.actions||[];
         S.demoIn=false;S.existingCards=null;
+        S.atRecordId=latest.airtableId||null;
         try{buildSummary()}catch(e){console.error('buildSummary error',e)}
         show('s-summary');
         return;
