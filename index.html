@@ -184,17 +184,53 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .col-sub-hdr:first-child{margin-top:0;border-top:none}
 .col-sub-hdr.well{color:var(--well-accent)}.col-sub-hdr.better{color:var(--better-accent)}.col-sub-hdr.next{color:var(--next-accent)}
 /* History */
-.history-body{flex:1;padding:2rem;max-width:680px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:1.25rem}
+.history-body{flex:1;padding:2rem;max-width:720px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:1.25rem}
+.hist-topbar{display:flex;align-items:flex-start;justify-content:space-between}
 .history-title{font-size:1.375rem;font-weight:700}
-.history-list{display:flex;flex-direction:column;gap:.5rem}
-.history-row{background:var(--surface);border-radius:var(--r);padding:.875rem 1.125rem;border:1px solid var(--border);cursor:pointer;transition:all .14s;display:flex;align-items:center;gap:1rem}
-.history-row:hover{border-color:var(--border-strong);box-shadow:var(--sh)}
-.hr-name{font-weight:600;font-size:.9rem}.hr-meta{font-size:.75rem;color:var(--ink-2);margin-top:.15rem}
-.hr-chips{margin-left:auto;display:flex;gap:.4rem;flex-shrink:0}
-.chip{font-size:.72rem;padding:.18rem .5rem;border-radius:100px;background:var(--surface-2);color:var(--ink-2);font-weight:500}
+.hist-subtitle{font-size:.82rem;color:var(--ink-2);margin-top:.2rem}
+
+/* Stat strip */
+.hist-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem}
+.hist-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.875rem 1rem;display:flex;flex-direction:column;gap:.15rem}
+.hist-stat-num{font-size:1.4rem;font-weight:700;color:var(--ink);line-height:1.1;font-family:Georgia,'Times New Roman',serif;font-style:italic}
+.hist-stat-label{font-size:.72rem;color:var(--ink-2);font-weight:500}
+
+/* Open action items panel */
+.oai-panel{background:var(--better-bg);border:1px solid var(--better-border);border-radius:var(--r);overflow:hidden}
+.oai-hdr{display:flex;align-items:center;gap:.5rem;padding:.8rem 1.125rem;border-bottom:1px solid var(--better-border)}
+.oai-icon{font-size:1rem}
+.oai-title{font-size:.85rem;font-weight:600;color:var(--better-accent)}
+.oai-list{display:flex;flex-direction:column}
+.oai-item{display:flex;align-items:center;gap:.6rem;padding:.65rem 1.125rem;border-bottom:1px solid var(--better-border);cursor:pointer;transition:background .12s;font-size:.82rem}
+.oai-item:last-child{border-bottom:none}
+.oai-item:hover{background:rgba(255,255,255,.35)}
+:root[data-theme="dark"] .oai-item:hover,@media(prefers-color-scheme:dark){.oai-item:hover{background:rgba(0,0,0,.15)}}
+.oai-text{flex:1;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oai-meta{font-size:.7rem;color:var(--better-accent);font-weight:600;flex-shrink:0;white-space:nowrap}
+.oai-more{padding:.6rem 1.125rem;font-size:.78rem;color:var(--better-accent);font-weight:500;text-align:center;cursor:pointer}
+.oai-more:hover{text-decoration:underline}
+
+/* Retro cards */
+.history-list{display:flex;flex-direction:column;gap:.65rem}
+.history-row{position:relative;background:var(--surface);border-radius:var(--r);padding:1rem 1.125rem 1rem 1.375rem;border:1px solid var(--border);cursor:pointer;transition:all .14s;display:flex;flex-direction:column;gap:.55rem;overflow:hidden}
+.history-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--hist-accent,var(--ink-3))}
+.history-row:hover{border-color:var(--border-strong);box-shadow:var(--sh);transform:translateY(-1px)}
+.hr-top{display:flex;align-items:flex-start;gap:1rem}
+.hr-name-row{display:flex;align-items:baseline;gap:.4rem;flex-wrap:wrap}
+.hr-name{font-weight:600;font-size:.95rem;color:var(--ink)}
+.hr-ice{font-size:.8rem}
+.hr-meta{font-size:.75rem;color:var(--ink-2);margin-top:.2rem;display:flex;align-items:center;gap:.4rem}
+.hr-meta-dot{width:3px;height:3px;border-radius:50%;background:var(--ink-3);flex-shrink:0}
+.hr-chips{margin-left:auto;display:flex;gap:.4rem;flex-shrink:0;align-items:flex-start}
+.chip{font-size:.72rem;padding:.18rem .5rem;border-radius:100px;background:var(--surface-2);color:var(--ink-2);font-weight:500;white-space:nowrap}
 .history-del{display:none;border:none;background:transparent;font-size:.8rem;cursor:pointer;padding:.25rem .4rem;border-radius:4px;line-height:1;margin-left:.25rem}.history-del:hover{background:rgba(191,106,14,.15)}.history-row:hover .history-del{display:inline}
 .history-row.selected{border-color:var(--next-accent);background:var(--next-bg)}
-.hist-checkbox{width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--next-accent)}
+.hr-progress-row{display:flex;align-items:center;gap:.6rem}
+.hr-progress-track{flex:1;height:5px;border-radius:100px;background:var(--surface-2);overflow:hidden}
+.hr-progress-fill{height:100%;background:var(--well-hdr);border-radius:100px;transition:width .3s}
+.hr-progress-label{font-size:.7rem;color:var(--ink-2);font-weight:500;white-space:nowrap;flex-shrink:0}
+.hr-empty-progress{font-size:.7rem;color:var(--ink-3);font-style:italic}
+.hist-checkbox{width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--next-accent);margin-top:.15rem}
 /* Modal */
 .overlay{position:fixed;inset:0;background:rgba(28,25,23,.45);z-index:100;display:none;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(2px)}
 .overlay.open{display:flex}
@@ -379,13 +415,28 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 <!-- HISTORY -->
 <div id="s-history" class="screen">
   <div class="history-body">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between">
-      <div><div class="wm" style="font-size:1rem;margin-bottom:.25rem">retro.</div><div class="history-title">Past Retros</div></div>
+    <div class="hist-topbar">
+      <div>
+        <div class="wm" style="font-size:1rem;margin-bottom:.25rem">retro.</div>
+        <div class="history-title">Past Retros</div>
+        <div class="hist-subtitle" id="hist-subtitle"></div>
+      </div>
       <div style="display:flex;gap:.5rem;margin-top:.5rem">
         <button class="btn btn-ghost btn-sm" id="hist-select-btn" onclick="toggleSelectMode()">☑ Select</button>
         <button class="btn btn-primary btn-sm" onclick="goSetup('create')">✨ New Retro</button>
       </div>
     </div>
+
+    <div id="hist-stats-row" class="hist-stats-row"></div>
+
+    <div id="oai-panel" class="oai-panel" style="display:none">
+      <div class="oai-hdr">
+        <span class="oai-icon">📌</span>
+        <span class="oai-title">Open action items from previous retros</span>
+      </div>
+      <div class="oai-list" id="oai-list"></div>
+    </div>
+
     <div id="hist-bulk-bar" style="display:none;align-items:center;gap:.6rem;padding:.6rem .875rem;background:var(--surface-2);border-radius:var(--r-sm);font-size:.82rem">
       <span id="hist-sel-count">0 selected</span>
       <button class="btn btn-ghost btn-sm" onclick="selectAllHistory()">Select all</button>
@@ -1122,30 +1173,125 @@ function dedupeSessions(list){
   return Object.values(byCode);
 }
 
+function timeAgo(dateStr){
+  const then=new Date(dateStr).getTime();if(isNaN(then))return'';
+  const diffDays=Math.floor((Date.now()-then)/86400000);
+  if(diffDays<=0)return'Today';
+  if(diffDays===1)return'Yesterday';
+  if(diffDays<7)return diffDays+' days ago';
+  if(diffDays<14)return'1 week ago';
+  if(diffDays<30)return Math.floor(diffDays/7)+' weeks ago';
+  if(diffDays<60)return'1 month ago';
+  return Math.floor(diffDays/30)+' months ago';
+}
+
+function retroAccent(s){
+  const well=s.cards?.well?.length||0,better=s.cards?.better?.length||0,next=s.cards?.next?.length||0;
+  if(!well&&!better&&!next)return'var(--ink-3)';
+  if(well>=better&&well>=next)return'var(--well-hdr)';
+  if(better>=well&&better>=next)return'var(--better-hdr)';
+  return'var(--next-hdr)';
+}
+
 async function showHistory(){
   show('s-history');
   const loading=document.getElementById('history-loading'),list=document.getElementById('history-list');
   list.innerHTML='';
-  if(atCfg()){loading.style.display='block';const r=await atLoad();loading.style.display='none';if(r&&r.length){renderHistoryList(dedupeSessions(r),list);return}}
-  let saved=[];try{saved=JSON.parse(localStorage.getItem('retro_v1')||'[]')}catch(e){}
-  renderHistoryList(dedupeSessions(saved),list);
+  let sessions=[];
+  if(atCfg()){
+    loading.style.display='block';
+    const r=await atLoad();
+    loading.style.display='none';
+    if(r&&r.length)sessions=dedupeSessions(r);
+  }
+  if(!sessions.length){
+    let saved=[];try{saved=JSON.parse(localStorage.getItem('retro_v1')||'[]')}catch(e){}
+    sessions=dedupeSessions(saved);
+  }
+  sessions.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  renderHistoryStats(sessions);
+  renderHistoryList(sessions,list);
 }
 
 let _histList=[];
 let _histSelectMode=false;
 let _histSelected=new Set();
 
+function renderHistoryStats(list){
+  const statsEl=document.getElementById('hist-stats-row');
+  const oaiPanel=document.getElementById('oai-panel');
+  const oaiList=document.getElementById('oai-list');
+  const subtitle=document.getElementById('hist-subtitle');
+
+  if(!list.length){
+    statsEl.style.display='none';oaiPanel.style.display='none';oaiPanel.dataset.hasItems='0';
+    subtitle.textContent='';
+    return;
+  }
+
+  let totalActions=0,doneActions=0;
+  const openItems=[];
+  list.forEach((s,i)=>{
+    (s.actions||[]).forEach(a=>{
+      totalActions++;
+      if(a.done)doneActions++;
+      else openItems.push({text:a.text,owner:a.owner,retroName:s.name,idx:i});
+    });
+  });
+  const totalCards=list.reduce((sum,s)=>sum+(s.cards?.well?.length||0)+(s.cards?.better?.length||0)+(s.cards?.next?.length||0),0);
+
+  subtitle.textContent=`${list.length} retrospective${list.length!==1?'s':''} · ${totalCards} reflections shared`;
+
+  statsEl.style.display='grid';
+  statsEl.innerHTML=`
+    <div class="hist-stat"><div class="hist-stat-num">${list.length}</div><div class="hist-stat-label">Retros held</div></div>
+    <div class="hist-stat"><div class="hist-stat-num">${totalActions?Math.round(doneActions/totalActions*100)+'%':'—'}</div><div class="hist-stat-label">Action items done</div></div>
+    <div class="hist-stat"><div class="hist-stat-num">${openItems.length}</div><div class="hist-stat-label">Still open</div></div>
+  `;
+
+  if(openItems.length){
+    oaiPanel.style.display='block';
+    oaiPanel.dataset.hasItems='1';
+    const shown=openItems.slice(0,5);
+    oaiList.innerHTML=shown.map(o=>`<div class="oai-item" onclick="viewSession(${o.idx})"><span class="oai-text">${esc(o.text)}</span><span class="oai-meta">👤 ${esc(o.owner)} · ${esc(o.retroName)}</span></div>`).join('')
+      +(openItems.length>shown.length?`<div class="oai-more">+${openItems.length-shown.length} more open item${openItems.length-shown.length!==1?'s':''}</div>`:'');
+  } else {
+    oaiPanel.style.display='none';
+    oaiPanel.dataset.hasItems='0';
+  }
+}
+
 function renderHistoryList(saved,list){
   _histList=saved;
-  if(!saved.length){list.innerHTML='<div style="color:var(--ink-2);text-align:center;padding:2rem">No past retros yet.</div>';return}
+  if(!saved.length){list.innerHTML='<div style="color:var(--ink-2);text-align:center;padding:2.5rem 1rem"><div style="font-size:1.75rem;margin-bottom:.5rem">🗒️</div><div style="font-weight:600;color:var(--ink)">No past retros yet</div><div style="font-size:.8rem;margin-top:.25rem">Run your first retrospective to start building a history.</div></div>';return}
   list.innerHTML=saved.map((s,i)=>{
+    const totalActions=(s.actions||[]).length;
+    const doneCount=(s.actions||[]).filter(a=>a.done).length;
     const n=(s.cards?.well?.length||0)+(s.cards?.better?.length||0)+(s.cards?.next?.length||0);
-    const d=new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const ago=timeAgo(s.date);
+    const fullDate=new Date(s.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
     const checked=_histSelected.has(i)?' checked':'';
     const checkbox=_histSelectMode?`<input type="checkbox" class="hist-checkbox" onclick="event.stopPropagation();toggleHistSelect(${i})"${checked}>`:'';
     const rowClick=_histSelectMode?`toggleHistSelect(${i})`:`viewSession(${i})`;
     const delBtn=_histSelectMode?'':`<button class="history-del" onclick="deleteSession(event,${i},'${s.id||''}')">🗑</button>`;
-    return`<div class="history-row${_histSelected.has(i)?' selected':''}" onclick="${rowClick}">${checkbox}<div><div class="hr-name">${esc(s.name)} ${s.ice||''}</div><div class="hr-meta">${d}</div></div><div class="hr-chips"><span class="chip">${n} cards</span><span class="chip">${s.actions?.length||0} actions</span>${delBtn}</div></div>`;
+    const progressPct=totalActions?Math.round(doneCount/totalActions*100):0;
+    const progressHtml=totalActions
+      ?`<div class="hr-progress-row"><div class="hr-progress-track"><div class="hr-progress-fill" style="width:${progressPct}%"></div></div><div class="hr-progress-label">${doneCount}/${totalActions} actions done</div></div>`
+      :`<div class="hr-empty-progress">No action items tracked</div>`;
+    return`<div class="history-row${_histSelected.has(i)?' selected':''}" style="--hist-accent:${retroAccent(s)}" onclick="${rowClick}">
+      <div class="hr-top">
+        ${checkbox}
+        <div style="flex:1;min-width:0">
+          <div class="hr-name-row"><span class="hr-name">${esc(s.name)}</span>${s.ice?`<span class="hr-ice">${esc(s.ice)}</span>`:''}</div>
+          <div class="hr-meta">${ago}<span class="hr-meta-dot"></span>${fullDate}</div>
+        </div>
+        <div class="hr-chips">
+          <span class="chip">${n} card${n!==1?'s':''}</span>
+          ${delBtn}
+        </div>
+      </div>
+      ${progressHtml}
+    </div>`;
   }).join('');
 }
 
@@ -1154,6 +1300,8 @@ function toggleSelectMode(){
   _histSelected.clear();
   document.getElementById('hist-select-btn').textContent=_histSelectMode?'✕ Cancel':'☑ Select';
   document.getElementById('hist-bulk-bar').style.display=_histSelectMode?'flex':'none';
+  document.getElementById('hist-stats-row').style.display=_histSelectMode?'none':(_histList.length?'grid':'none');
+  document.getElementById('oai-panel').style.display=_histSelectMode?'none':document.getElementById('oai-panel').dataset.hasItems==='1'?'block':'none';
   renderHistoryList(_histList,document.getElementById('history-list'));
   updateHistSelCount();
 }
