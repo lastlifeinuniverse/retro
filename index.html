@@ -201,7 +201,10 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .oai-icon{font-size:1rem}
 .oai-title{font-size:.85rem;font-weight:600;color:var(--better-accent)}
 .oai-list{display:flex;flex-direction:column}
-.oai-item{display:flex;align-items:center;gap:.6rem;padding:.65rem 1.125rem;border-bottom:1px solid var(--better-border);cursor:pointer;transition:background .12s;font-size:.82rem}
+.oai-item{display:flex;align-items:center;gap:.6rem;padding:.65rem 1.125rem;border-bottom:1px solid var(--better-border);transition:background .12s;font-size:.82rem}
+.oai-check{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--better-accent);background:transparent;flex-shrink:0;cursor:pointer;padding:0;transition:all .13s}
+.oai-check:hover{background:var(--better-accent)}
+.oai-text,.oai-meta{cursor:pointer}
 .oai-item:last-child{border-bottom:none}
 .oai-item:hover{background:rgba(255,255,255,.35)}
 :root[data-theme="dark"] .oai-item:hover,@media(prefers-color-scheme:dark){.oai-item:hover{background:rgba(0,0,0,.15)}}
@@ -1231,13 +1234,43 @@ function renderOaiList(){
   const oaiList=document.getElementById('oai-list');
   const shown=_oaiExpanded?_oaiAllItems:_oaiAllItems.slice(0,5);
   const remaining=_oaiAllItems.length-shown.length;
-  oaiList.innerHTML=shown.map(o=>`<div class="oai-item" onclick="viewSession(${o.idx})"><span class="oai-text">${esc(o.text)}</span><span class="oai-meta">👤 ${esc(o.owner)} · ${esc(o.retroName)}</span></div>`).join('')
+  oaiList.innerHTML=shown.map(o=>`<div class="oai-item">
+      <button class="oai-check" onclick="event.stopPropagation();toggleOaiItem(${o.idx},'${o.actionId}')" title="Mark done"></button>
+      <span class="oai-text" onclick="viewSession(${o.idx})">${esc(o.text)}</span>
+      <span class="oai-meta" onclick="viewSession(${o.idx})">👤 ${esc(o.owner)} · ${esc(o.retroName)}</span>
+    </div>`).join('')
     +(remaining>0?`<div class="oai-more" onclick="expandOaiList()">+${remaining} more open item${remaining!==1?'s':''}</div>`:'');
 }
 
 function expandOaiList(){
   _oaiExpanded=true;
   renderOaiList();
+}
+
+async function toggleOaiItem(sessionIdx,actionId){
+  const session=_histList[sessionIdx];if(!session)return;
+  const a=(session.actions||[]).find(x=>x.id===actionId);if(!a)return;
+  a.done=true;
+  const msg=MOTIVATION_MSGS[Math.floor(Math.random()*MOTIVATION_MSGS.length)];
+  toast(msg);
+  setTimeout(celebrate,100);
+  renderHistoryStats(_histList);
+  renderHistoryList(_histList,document.getElementById('history-list'));
+  await persistSessionActions(session);
+}
+
+async function persistSessionActions(session){
+  try{
+    const saved=JSON.parse(localStorage.getItem('retro_v1')||'[]');
+    const idx=saved.findIndex(s=>s.id===session.id);
+    if(idx>=0){saved[idx].actions=session.actions;localStorage.setItem('retro_v1',JSON.stringify(saved))}
+  }catch(e){}
+  if(atCfg()&&session.id){
+    try{
+      const rec=await atLoadByCode(session.id);
+      if(rec?.airtableId)await atUpdate(rec.airtableId,{'Actions':JSON.stringify(session.actions)});
+    }catch(e){}
+  }
 }
 
 function renderHistoryStats(list){
@@ -1258,7 +1291,7 @@ function renderHistoryStats(list){
     (s.actions||[]).forEach(a=>{
       totalActions++;
       if(a.done)doneActions++;
-      else openItems.push({text:a.text,owner:a.owner,retroName:s.name,idx:i});
+      else openItems.push({actionId:a.id,text:a.text,owner:a.owner,retroName:s.name,idx:i});
     });
   });
   const totalCards=list.reduce((sum,s)=>sum+(s.cards?.well?.length||0)+(s.cards?.better?.length||0)+(s.cards?.next?.length||0),0);
