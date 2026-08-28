@@ -1224,6 +1224,22 @@ let _histList=[];
 let _histSelectMode=false;
 let _histSelected=new Set();
 
+let _oaiAllItems=[];
+let _oaiExpanded=false;
+
+function renderOaiList(){
+  const oaiList=document.getElementById('oai-list');
+  const shown=_oaiExpanded?_oaiAllItems:_oaiAllItems.slice(0,5);
+  const remaining=_oaiAllItems.length-shown.length;
+  oaiList.innerHTML=shown.map(o=>`<div class="oai-item" onclick="viewSession(${o.idx})"><span class="oai-text">${esc(o.text)}</span><span class="oai-meta">👤 ${esc(o.owner)} · ${esc(o.retroName)}</span></div>`).join('')
+    +(remaining>0?`<div class="oai-more" onclick="expandOaiList()">+${remaining} more open item${remaining!==1?'s':''}</div>`:'');
+}
+
+function expandOaiList(){
+  _oaiExpanded=true;
+  renderOaiList();
+}
+
 function renderHistoryStats(list){
   const statsEl=document.getElementById('hist-stats-row');
   const oaiPanel=document.getElementById('oai-panel');
@@ -1259,9 +1275,9 @@ function renderHistoryStats(list){
   if(openItems.length){
     oaiPanel.style.display='block';
     oaiPanel.dataset.hasItems='1';
-    const shown=openItems.slice(0,5);
-    oaiList.innerHTML=shown.map(o=>`<div class="oai-item" onclick="viewSession(${o.idx})"><span class="oai-text">${esc(o.text)}</span><span class="oai-meta">👤 ${esc(o.owner)} · ${esc(o.retroName)}</span></div>`).join('')
-      +(openItems.length>shown.length?`<div class="oai-more">+${openItems.length-shown.length} more open item${openItems.length-shown.length!==1?'s':''}</div>`:'');
+    _oaiAllItems=openItems;
+    _oaiExpanded=false;
+    renderOaiList();
   } else {
     oaiPanel.style.display='none';
     oaiPanel.dataset.hasItems='0';
