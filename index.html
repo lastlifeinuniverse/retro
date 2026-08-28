@@ -358,6 +358,7 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
       <div><div class="wm" style="font-size:1rem">retro.</div><div class="sum-title" id="sum-title"></div><div class="sum-meta" id="sum-meta"></div></div>
       <div style="display:flex;gap:.5rem;flex-shrink:0;padding-top:.5rem">
         <button class="btn btn-ghost btn-sm" onclick="copyExport()">📋 Copy</button>
+        <button class="btn btn-ghost btn-sm" onclick="emailExport()">✉️ Email</button>
         <button class="btn btn-primary btn-sm" onclick="show('s-landing');checkHistory()">New Retro</button>
       </div>
     </div>
@@ -990,12 +991,26 @@ function checkJoinLink(){
     toast('Join link detected — enter your name to continue');
   }catch(e){}
 }
-function copyExport(){
+function buildExportText(){
   const all={well:allCards('well').sort((a,b)=>(b.votes||0)-(a.votes||0)),better:allCards('better').sort((a,b)=>(b.votes||0)-(a.votes||0)),next:allCards('next').sort((a,b)=>(b.votes||0)-(a.votes||0))};
   const today=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   let t=`${S.name} — Retrospective\n${today}\n\n✨ WENT WELL\n${all.well.map(c=>`• ${c.text}${c.votes?' ('+c.votes+' votes)':''}`).join('\n')||'(none)'}\n\n🔧 COULD BE BETTER\n${all.better.map(c=>`• ${c.text}${c.votes?' ('+c.votes+' votes)':''}`).join('\n')||'(none)'}\n\n🚀 WHAT'S NEXT\n${all.next.map(c=>`• ${c.text}${c.votes?' ('+c.votes+' votes)':''}`).join('\n')||'(none)'}`;
   if(S.actions.length)t+=`\n\n📋 ACTION ITEMS\n${S.actions.map(a=>`• [${a.done?'x':' '}] ${a.text} (${a.owner}${a.due?' · '+fmtDate(a.due):''})`).join('\n')}`;
-  navigator.clipboard.writeText(t).then(()=>toast('Copied to clipboard!'));
+  return t;
+}
+function copyExport(){
+  navigator.clipboard.writeText(buildExportText()).then(()=>toast('Copied to clipboard!'));
+}
+function emailExport(){
+  const subject=encodeURIComponent(`${S.name} — Retrospective Summary`);
+  const body=encodeURIComponent(buildExportText());
+  const mailto=`mailto:?subject=${subject}&body=${body}`;
+  if(mailto.length>1800){
+    toast('Summary too long for email — copying to clipboard instead');
+    copyExport();
+    return;
+  }
+  window.location.href=mailto;
 }
 
 // ===== PERSISTENCE =====
