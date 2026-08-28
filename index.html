@@ -261,6 +261,13 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .submitted-title{font-size:1.375rem;font-weight:700}
 .submitted-sub{font-size:.9rem;color:var(--ink-2);max-width:340px;line-height:1.6}
 @media(max-width:680px){.board-body{grid-template-columns:1fr;overflow-y:auto}.col{min-height:280px}.phase-steps{display:none}.board-name{max-width:120px}}
+@media(max-width:520px){
+  .hist-stats-row{grid-template-columns:1fr 1fr 1fr;gap:.5rem}
+  .hist-stat{padding:.65rem .7rem}.hist-stat-num{font-size:1.15rem}.hist-stat-label{font-size:.66rem}
+  .oai-item{flex-direction:column;align-items:flex-start;gap:.2rem}
+  .oai-text{white-space:normal;overflow:visible}
+  .hr-top{flex-wrap:wrap}.hr-chips{margin-left:0}
+}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 
