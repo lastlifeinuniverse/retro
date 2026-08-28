@@ -207,6 +207,18 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .oai-body{flex:1;min-width:0;display:flex;align-items:center;gap:.5rem;cursor:pointer}
 .oai-carry{flex-shrink:0;border:none;background:transparent;color:var(--better-accent);font-size:.9rem;cursor:pointer;padding:.15rem .3rem;border-radius:4px;opacity:.65;transition:all .13s}
 .oai-carry:hover{opacity:1;background:rgba(255,255,255,.4)}
+
+/* Completed wins panel */
+.win-panel{background:var(--well-bg);border:1px solid var(--well-border);border-radius:var(--r);overflow:hidden}
+.win-hdr{display:flex;align-items:center;gap:.5rem;padding:.8rem 1.125rem;cursor:pointer;user-select:none}
+.win-title{font-size:.85rem;font-weight:600;color:var(--well-accent);flex:1}
+.win-toggle{font-size:.7rem;color:var(--well-accent);transition:transform .15s}
+.win-toggle.open{transform:rotate(180deg)}
+.win-panel .oai-list{border-top:1px solid var(--well-border)}
+.win-panel .oai-item{border-bottom:1px solid var(--well-border)}
+.win-item-text{text-decoration:line-through;color:var(--ink-2)}
+.win-reopen{flex-shrink:0;border:none;background:transparent;color:var(--well-accent);font-size:.9rem;cursor:pointer;padding:.15rem .3rem;border-radius:4px;opacity:.55;transition:all .13s}
+.win-reopen:hover{opacity:1;background:rgba(255,255,255,.4)}
 .oai-item:last-child{border-bottom:none}
 .oai-item:hover{background:rgba(255,255,255,.35)}
 :root[data-theme="dark"] .oai-item:hover,@media(prefers-color-scheme:dark){.oai-item:hover{background:rgba(0,0,0,.15)}}
@@ -447,6 +459,15 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
         <span class="oai-title">Open action items from previous retros</span>
       </div>
       <div class="oai-list" id="oai-list"></div>
+    </div>
+
+    <div id="win-panel" class="win-panel" style="display:none">
+      <div class="win-hdr" onclick="toggleWinPanel()">
+        <span class="oai-icon">🏆</span>
+        <span class="win-title">Completed wins</span>
+        <span class="win-toggle" id="win-toggle-icon">▾</span>
+      </div>
+      <div class="oai-list" id="win-list" style="display:none"></div>
     </div>
 
     <div id="hist-bulk-bar" style="display:none;align-items:center;gap:.6rem;padding:.6rem .875rem;background:var(--surface-2);border-radius:var(--r-sm);font-size:.82rem">
@@ -1252,6 +1273,44 @@ function expandOaiList(){
   renderOaiList();
 }
 
+let _winAllItems=[];
+let _winExpanded=false;
+let _winOpen=false;
+
+function toggleWinPanel(){
+  _winOpen=!_winOpen;
+  document.getElementById('win-list').style.display=_winOpen?'block':'none';
+  document.getElementById('win-toggle-icon').classList.toggle('open',_winOpen);
+  if(_winOpen)renderWinList();
+}
+
+function renderWinList(){
+  const winList=document.getElementById('win-list');
+  const shown=_winExpanded?_winAllItems:_winAllItems.slice(0,8);
+  const remaining=_winAllItems.length-shown.length;
+  winList.innerHTML=shown.map(o=>`<div class="oai-item">
+      <span class="win-item-text oai-body" onclick="viewSession(${o.idx})" style="flex:1">${esc(o.text)}<span class="oai-meta" style="display:block;margin-top:.1rem">👤 ${esc(o.owner)} · ${esc(o.retroName)}</span></span>
+      <button class="win-reopen" onclick="event.stopPropagation();reopenWinItem(${o.idx},'${o.actionId}')" title="Reopen as pending">↺</button>
+    </div>`).join('')
+    +(remaining>0?`<div class="oai-more" onclick="expandWinList()">+${remaining} more completed item${remaining!==1?'s':''}</div>`:'');
+}
+
+function expandWinList(){
+  _winExpanded=true;
+  renderWinList();
+}
+
+async function reopenWinItem(sessionIdx,actionId){
+  const session=_histList[sessionIdx];if(!session)return;
+  const a=(session.actions||[]).find(x=>x.id===actionId);if(!a)return;
+  a.done=false;
+  toast('Moved back to open action items');
+  renderHistoryStats(_histList);
+  renderHistoryList(_histList,document.getElementById('history-list'));
+  if(_winOpen)renderWinList();
+  await persistSessionActions(session);
+}
+
 function carryForwardOaiItem(sessionIdx,actionId){
   const session=_histList[sessionIdx];if(!session)return;
   const a=(session.actions||[]).find(x=>x.id===actionId);if(!a)return;
@@ -1296,19 +1355,22 @@ function renderHistoryStats(list){
 
   if(!list.length){
     statsEl.style.display='none';oaiPanel.style.display='none';oaiPanel.dataset.hasItems='0';
+    document.getElementById('win-panel').style.display='none';document.getElementById('win-panel').dataset.hasItems='0';
     subtitle.textContent='';
     return;
   }
 
   let totalActions=0,doneActions=0;
   const openItems=[];
+  const completedItems=[];
   list.forEach((s,i)=>{
     (s.actions||[]).forEach(a=>{
       totalActions++;
-      if(a.done)doneActions++;
+      if(a.done){doneActions++;completedItems.push({actionId:a.id,text:a.text,owner:a.owner,retroName:s.name,retroDate:s.date,idx:i})}
       else openItems.push({actionId:a.id,text:a.text,owner:a.owner,retroName:s.name,idx:i});
     });
   });
+  completedItems.sort((a,b)=>new Date(b.retroDate)-new Date(a.retroDate));
   const totalCards=list.reduce((sum,s)=>sum+(s.cards?.well?.length||0)+(s.cards?.better?.length||0)+(s.cards?.next?.length||0),0);
 
   subtitle.textContent=`${list.length} retrospective${list.length!==1?'s':''} · ${totalCards} reflections shared`;
@@ -1329,6 +1391,17 @@ function renderHistoryStats(list){
   } else {
     oaiPanel.style.display='none';
     oaiPanel.dataset.hasItems='0';
+  }
+
+  const winPanel=document.getElementById('win-panel');
+  if(completedItems.length){
+    winPanel.style.display='block';
+    winPanel.dataset.hasItems='1';
+    _winAllItems=completedItems;
+    document.querySelector('.win-title').textContent=`Completed wins (${completedItems.length})`;
+  } else {
+    winPanel.style.display='none';
+    winPanel.dataset.hasItems='0';
   }
 }
 
@@ -1373,6 +1446,7 @@ function toggleSelectMode(){
   document.getElementById('hist-bulk-bar').style.display=_histSelectMode?'flex':'none';
   document.getElementById('hist-stats-row').style.display=_histSelectMode?'none':(_histList.length?'grid':'none');
   document.getElementById('oai-panel').style.display=_histSelectMode?'none':document.getElementById('oai-panel').dataset.hasItems==='1'?'block':'none';
+  document.getElementById('win-panel').style.display=_histSelectMode?'none':document.getElementById('win-panel').dataset.hasItems==='1'?'block':'none';
   renderHistoryList(_histList,document.getElementById('history-list'));
   updateHistSelCount();
 }
