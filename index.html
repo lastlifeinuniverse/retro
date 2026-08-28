@@ -548,7 +548,7 @@ const S={
   actions:[], dots:5,
   timerSec:600, timerInt:null,
   demoIn:false, isJoining:false, atRecordId:null,
-  rTarget:null, syncInt:null, viewingPast:false,
+  rTarget:null, syncInt:null, viewingPast:false, joinSubmitted:false,
 };
 
 const DEMO={
@@ -600,6 +600,52 @@ async function atUpdate(recordId,fields){
   try{await fetch(atUrl(cfg)+'/'+recordId,{method:'PATCH',headers:atHdr(cfg),body:JSON.stringify({fields})})}catch(e){}
 }
 
+async function syncLiveState(){
+  if(!atCfg()||!S.atRecordId)return;
+  const full={well:allCards('well'),better:allCards('better'),next:allCards('next'),_phase:S.phase};
+  await atUpdate(S.atRecordId,{'Cards':JSON.stringify(full)});
+}
+
+function startLiveSync(){
+  clearInterval(S.syncInt);S.syncInt=null;
+  if(!atCfg()||S.isJoining)return;
+  S.syncInt=setInterval(async()=>{
+    if(S.phase==='done'){clearInterval(S.syncInt);S.syncInt=null;return}
+    const sess=await atLoadByCode(S.id);
+    if(!sess)return;
+    S.existingCards=sess.cards;
+    renderBoard();
+  },5000);
+}
+
+function phaseAnnounce(p){
+  return{writing:'Still in writing phase',revealed:'✨ Cards have been revealed!',voting:'🗳️ Voting has started — cast your votes',actions:'📋 Facilitator is adding action items'}[p]||'';
+}
+
+function startJoinLiveSync(){
+  clearInterval(S.syncInt);S.syncInt=null;
+  S.syncInt=setInterval(async()=>{
+    const sess=await atLoadByCode(S.id);
+    if(!sess)return;
+    const phaseChanged=sess.phase!==S.phase;
+    S.existingCards=sess.cards;
+    if(sess.phase==='done'){
+      clearInterval(S.syncInt);S.syncInt=null;
+      showRetroEnded();
+      return;
+    }
+    S.phase=sess.phase;
+    renderBoard();updatePhaseUI();
+    if(phaseChanged)toast(phaseAnnounce(sess.phase));
+  },4000);
+}
+
+function showRetroEnded(){
+  document.getElementById('submitted-title').textContent='This retro has wrapped up — thanks for participating! 🎉';
+  document.getElementById('submitted-sub').textContent='Great work team. The facilitator will share the summary shortly.';
+  show('s-submitted');
+}
+
 async function atLoadByCode(code){
   const cfg=atCfg();if(!cfg)return null;
   try{
@@ -608,15 +654,17 @@ async function atLoadByCode(code){
     const d=await r.json();
     if(!r.ok||!d.records?.length)return null;
     const rec=d.records[0];
-    let cards={well:[],better:[],next:[]},actions=[];
-    try{cards=JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}');}catch(e){console.warn('Bad Cards JSON for',rec.fields['Retro Code'])}
+    let cardsRaw={well:[],better:[],next:[]},actions=[];
+    try{cardsRaw=JSON.parse(rec.fields['Cards']||'{"well":[],"better":[],"next":[]}');}catch(e){console.warn('Bad Cards JSON for',rec.fields['Retro Code'])}
     try{actions=JSON.parse(rec.fields['Actions']||'[]');}catch(e){console.warn('Bad Actions JSON for',rec.fields['Retro Code'])}
+    const phase=cardsRaw._phase||'writing';
+    const cards={well:cardsRaw.well||[],better:cardsRaw.better||[],next:cardsRaw.next||[]};
     return{
       airtableId:rec.id,
       id:rec.fields['Retro Code'],
       name:rec.fields['Name']||'Retro',
       ice:rec.fields['Icebreaker']||null,
-      cards,actions,
+      cards,actions,phase,
     };
   }catch(e){console.error('atLoadByCode error:',e);return null}
 }
@@ -722,12 +770,17 @@ async function startSetup(){
     S.user=user;S.isJoining=true;S.demoIn=false;S.viewingPast=false;
     S.existingCards=sess.cards;
     S.cards={well:[],better:[],next:[]};
-    S.actions=[];S.phase='writing';S.dots=5;
+    S.actions=[];S.phase=sess.phase||'writing';S.dots=5;
+    S.joinSubmitted=(S.phase!=='writing');
     initBoard();show('s-board');
+    if(S.joinSubmitted){
+      if(S.phase==='done')showRetroEnded();
+      else{toast('This retro is already underway — you can still add cards and vote!');startJoinLiveSync()}
+    }
   } else {
     S.name=document.getElementById('i-sname').value.trim()||'Sprint Retro';
     S.id=genCode();S.user=user;S.isJoining=false;S.atRecordId=null;S.existingCards=null;
-    S.cards={well:[],better:[],next:[]};S.phase='writing';S.dots=5;S.demoIn=false;S.viewingPast=false;
+    S.cards={well:[],better:[],next:[]};S.phase='writing';S.dots=5;S.demoIn=false;S.viewingPast=false;S.joinSubmitted=false;
     S.actions=loadCarriedActions();
     Object.values(DEMO).flat().forEach(c=>{c.reactions={};c.myR={};c.votes=0;c.myV=false});
     showIce();
@@ -751,7 +804,7 @@ function initBoard(){
   document.getElementById('board-name').textContent=S.name;
   document.getElementById('board-code').textContent=S.id;
   document.getElementById('join-badge').style.display=S.isJoining?'':'none';
-  document.getElementById('phase-steps').style.display=S.isJoining?'none':'';
+  document.getElementById('phase-steps').style.display='';
   document.getElementById('timer-btn').style.display=S.isJoining?'none':'';
   document.getElementById('timer-disp').style.display=S.isJoining?'none':'';
   document.getElementById('ai-owner').value=S.user;
@@ -815,10 +868,18 @@ function addCard(col){
   if(S.phase==='done')return;
   const ta=document.getElementById('ta-'+col);
   const text=ta.value.trim();if(!text)return;
-  S.cards[col].push({id:genId(),text,author:S.user,reactions:{},myR:{},votes:0,myV:false});
+  const card={id:genId(),text,author:S.user,reactions:{},myR:{},votes:0,myV:false};
+  const drafting=S.phase==='writing'&&(!S.isJoining||!S.joinSubmitted);
+  if(drafting){
+    S.cards[col].push(card);
+  } else {
+    if(!S.existingCards)S.existingCards={well:[],better:[],next:[]};
+    S.existingCards[col].push(card);
+    syncLiveState();
+    toast('Added — don\'t forget to mention it to the group!');
+  }
   ta.value='';ta.style.height='auto';renderCol(col);
   const c=document.getElementById('cards-'+col);c.scrollTop=c.scrollHeight;
-  if(S.phase!=='writing')toast('Added — don\'t forget to mention it to the group!');
 }
 function removeCard(id){
   if(S.phase!=='writing')return;
@@ -870,6 +931,7 @@ function toggleR(id,emoji){
   if(c.myR[emoji]){c.myR[emoji]=false;c.reactions[emoji]=Math.max(0,(c.reactions[emoji]||1)-1)}
   else{c.myR[emoji]=true;c.reactions[emoji]=(c.reactions[emoji]||0)+1}
   renderBoard();
+  if(S.phase!=='writing')syncLiveState();
 }
 function findCard(id){
   for(const col of['well','better','next']){
@@ -886,6 +948,7 @@ function vote(id){
   if(c.myV){c.myV=false;c.votes=Math.max(0,(c.votes||1)-1);S.dots++}
   else{if(S.dots<=0)return;c.myV=true;c.votes=(c.votes||0)+1;S.dots--}
   updDots();renderBoard();
+  syncLiveState();
 }
 function updDots(){if(S.phase==='voting')document.getElementById('timer-disp').textContent=S.dots+' dot'+(S.dots!==1?'s':'')}
 
@@ -900,12 +963,20 @@ function updatePhaseUI(){
   const inputs=['inp-well','inp-better','inp-next'];
   const showInputs=S.phase==='writing'||S.phase==='revealed'||S.phase==='voting'||S.phase==='actions';
   inputs.forEach(i=>document.getElementById(i).style.display=showInputs?'':'none');
-  drawer.style.display=S.phase==='actions'?'flex':'none';
-  if(S.isJoining){
+  drawer.style.display=(S.phase==='actions'&&!S.isJoining)?'flex':'none';
+  if(S.isJoining&&!S.joinSubmitted){
     cta.textContent='Submit My Cards →';cta.style.display='';
     back.style.display='none';
     document.getElementById('timer-btn').style.display='none';
     document.getElementById('timer-disp').style.display='none';
+    return;
+  }
+  if(S.isJoining&&S.joinSubmitted){
+    cta.style.display='none';
+    back.style.display='none';
+    document.getElementById('timer-btn').style.display='none';
+    document.getElementById('timer-disp').style.display='none';
+    if(S.phase==='voting')updDots();
     return;
   }
   back.style.display=(S.phase==='writing'||S.phase==='done')?'none':'';
@@ -926,27 +997,43 @@ function handleCta(){
 
 function handleBack(){
   if(S.isJoining)return;
-  if(S.phase==='revealed'){S.phase='writing';renderBoard();updatePhaseUI();toast('Back to writing — cards are hidden again')}
+  if(S.phase==='revealed'){S.phase='writing';renderBoard();updatePhaseUI();toast('Back to writing — cards are hidden again');clearInterval(S.syncInt);S.syncInt=null}
   else if(S.phase==='voting'){S.phase='revealed';S.dots=5;renderBoard();updatePhaseUI();toast('Back to revealed')}
   else if(S.phase==='actions'){S.phase='voting';renderBoard();updatePhaseUI();toast('Back to voting')}
+  if(atCfg())syncLiveState();
 }
 
 async function reveal(){
   stopTimer();clearInterval(S.syncInt);S.syncInt=null;
-  if(atCfg()&&!S.isJoining){const sess=await atLoadByCode(S.id);if(sess)S.existingCards=sess.cards}
-  S.phase='revealed';renderBoard();updatePhaseUI();
+  if(atCfg()&&!S.isJoining){
+    const sess=await atLoadByCode(S.id);
+    const remote=sess?sess.cards:{well:[],better:[],next:[]};
+    const merged={
+      well:[...S.cards.well,...remote.well],
+      better:[...S.cards.better,...remote.better],
+      next:[...S.cards.next,...remote.next],
+    };
+    S.existingCards=merged;
+    S.cards={well:[],better:[],next:[]};
+    S.phase='revealed';
+    if(S.atRecordId)await atUpdate(S.atRecordId,{'Cards':JSON.stringify({...merged,_phase:'revealed'})});
+    startLiveSync();
+  } else {
+    S.phase='revealed';
+  }
+  renderBoard();updatePhaseUI();
   const t=allCards('well').length+allCards('better').length+allCards('next').length;
   toast(`✨ ${t} cards revealed!`);setTimeout(celebrate,150);
 }
-function startVoting(){S.phase='voting';renderBoard();updatePhaseUI();toast('5 dots — vote for what matters most')}
-function startActions(){S.phase='actions';renderBoard();updatePhaseUI();renderActions();setTimeout(()=>document.getElementById('ai-text').focus(),100)}
+function startVoting(){S.phase='voting';renderBoard();updatePhaseUI();toast('5 dots — vote for what matters most');if(atCfg()&&!S.isJoining)syncLiveState()}
+function startActions(){S.phase='actions';renderBoard();updatePhaseUI();renderActions();setTimeout(()=>document.getElementById('ai-text').focus(),100);if(atCfg()&&!S.isJoining)syncLiveState()}
 function finishRetro(){
-  stopTimer();S.phase='done';
+  stopTimer();clearInterval(S.syncInt);S.syncInt=null;S.phase='done';
   const sess=saveSession();buildSummary();show('s-summary');
   if(atCfg()){
     toast('Saving to Airtable…');
     if(S.atRecordId){
-      atUpdate(S.atRecordId,{'Name':sess.name,'Icebreaker':sess.ice||'','Cards':JSON.stringify(sess.cards),'Actions':JSON.stringify(sess.actions)}).then(()=>toast('Saved to Airtable ✓'));
+      atUpdate(S.atRecordId,{'Name':sess.name,'Icebreaker':sess.ice||'','Cards':JSON.stringify({...sess.cards,_phase:'done'}),'Actions':JSON.stringify(sess.actions)}).then(()=>toast('Saved to Airtable ✓'));
     } else {
       atSave(sess).then(r=>{if(r)S.atRecordId=r.id;toast('Saved to Airtable ✓')});
     }
@@ -968,9 +1055,17 @@ async function submitJoinCards(){
   };
   const recordId=S.atRecordId||current?.airtableId;
   if(recordId){
-    await atUpdate(recordId,{'Cards':JSON.stringify(merged)});
-    document.getElementById('submitted-title').textContent='Cards added to '+S.name+'!';
-    show('s-submitted');
+    const phaseNow=current?.phase||'writing';
+    await atUpdate(recordId,{'Cards':JSON.stringify({...merged,_phase:phaseNow})});
+    S.atRecordId=recordId;
+    S.existingCards=merged;
+    S.cards={well:[],better:[],next:[]};
+    S.phase=phaseNow;
+    S.joinSubmitted=true;
+    toast('Cards submitted — watching the retro live ✨');
+    renderBoard();updatePhaseUI();
+    if(phaseNow==='done')showRetroEnded();
+    else startJoinLiveSync();
   } else {
     toast('Could not save — check your Airtable connection');
     btn.textContent='Submit My Cards →';btn.disabled=false;
