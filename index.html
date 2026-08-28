@@ -204,7 +204,9 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
 .oai-item{display:flex;align-items:center;gap:.6rem;padding:.65rem 1.125rem;border-bottom:1px solid var(--better-border);transition:background .12s;font-size:.82rem}
 .oai-check{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--better-accent);background:transparent;flex-shrink:0;cursor:pointer;padding:0;transition:all .13s}
 .oai-check:hover{background:var(--better-accent)}
-.oai-text,.oai-meta{cursor:pointer}
+.oai-body{flex:1;min-width:0;display:flex;align-items:center;gap:.5rem;cursor:pointer}
+.oai-carry{flex-shrink:0;border:none;background:transparent;color:var(--better-accent);font-size:.9rem;cursor:pointer;padding:.15rem .3rem;border-radius:4px;opacity:.65;transition:all .13s}
+.oai-carry:hover{opacity:1;background:rgba(255,255,255,.4)}
 .oai-item:last-child{border-bottom:none}
 .oai-item:hover{background:rgba(255,255,255,.35)}
 :root[data-theme="dark"] .oai-item:hover,@media(prefers-color-scheme:dark){.oai-item:hover{background:rgba(0,0,0,.15)}}
@@ -1236,8 +1238,11 @@ function renderOaiList(){
   const remaining=_oaiAllItems.length-shown.length;
   oaiList.innerHTML=shown.map(o=>`<div class="oai-item">
       <button class="oai-check" onclick="event.stopPropagation();toggleOaiItem(${o.idx},'${o.actionId}')" title="Mark done"></button>
-      <span class="oai-text" onclick="viewSession(${o.idx})">${esc(o.text)}</span>
-      <span class="oai-meta" onclick="viewSession(${o.idx})">👤 ${esc(o.owner)} · ${esc(o.retroName)}</span>
+      <div class="oai-body" onclick="viewSession(${o.idx})">
+        <span class="oai-text">${esc(o.text)}</span>
+        <span class="oai-meta">👤 ${esc(o.owner)} · ${esc(o.retroName)}</span>
+      </div>
+      <button class="oai-carry" onclick="event.stopPropagation();carryForwardOaiItem(${o.idx},'${o.actionId}')" title="Carry to next retro">↷</button>
     </div>`).join('')
     +(remaining>0?`<div class="oai-more" onclick="expandOaiList()">+${remaining} more open item${remaining!==1?'s':''}</div>`:'');
 }
@@ -1245,6 +1250,16 @@ function renderOaiList(){
 function expandOaiList(){
   _oaiExpanded=true;
   renderOaiList();
+}
+
+function carryForwardOaiItem(sessionIdx,actionId){
+  const session=_histList[sessionIdx];if(!session)return;
+  const a=(session.actions||[]).find(x=>x.id===actionId);if(!a)return;
+  const queue=loadCarryQueue();
+  if(queue.find(q=>q.origId===actionId+'-'+session.id)){toast('Already queued for next retro');return}
+  queue.push({id:genId(),origId:actionId+'-'+session.id,text:a.text,owner:a.owner,fromRetro:session.name});
+  localStorage.setItem('retro_carry',JSON.stringify(queue));
+  toast('Added to next retro\'s action items ↷');
 }
 
 async function toggleOaiItem(sessionIdx,actionId){
