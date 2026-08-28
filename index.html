@@ -367,6 +367,7 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
       <div style="display:flex;gap:.5rem;flex-shrink:0;padding-top:.5rem">
         <button class="btn btn-ghost btn-sm" onclick="copyExport()">📋 Copy</button>
         <button class="btn btn-ghost btn-sm" onclick="emailExport()">✉️ Email</button>
+        <button class="btn btn-ghost btn-sm" onclick="whatsappExport()">💬 WhatsApp</button>
         <button class="btn btn-primary btn-sm" onclick="show('s-landing');checkHistory()">New Retro</button>
       </div>
     </div>
@@ -1081,6 +1082,16 @@ function emailExport(){
     return;
   }
   window.location.href=mailto;
+}
+function whatsappExport(){
+  const text=encodeURIComponent(buildExportText());
+  const url=`https://wa.me/?text=${text}`;
+  if(url.length>3800){
+    toast('Summary too long for WhatsApp — copying to clipboard instead');
+    copyExport();
+    return;
+  }
+  window.open(url,'_blank');
 }
 
 // ===== PERSISTENCE =====
