@@ -808,11 +808,33 @@ async function startSetup(){
       else{toast('This retro is already underway — you can still add cards and vote!');startJoinLiveSync()}
     }
   } else {
-    S.name=document.getElementById('i-sname').value.trim()||'Sprint Retro';
-    S.id=genCode();S.user=user;S.isJoining=false;S.atRecordId=null;S.existingCards=null;
-    S.cards={well:[],better:[],next:[]};S.phase='writing';S.dots=5;S.demoIn=false;S.viewingPast=false;S.joinSubmitted=false;
-    S.actions=loadCarriedActions();
+    const typedName=document.getElementById('i-sname').value.trim()||'Sprint Retro';
+    const code=genCode();
+    S.user=user;S.isJoining=false;S.demoIn=false;S.viewingPast=false;S.joinSubmitted=false;S.dots=5;
+
+    let resumed=false;
+    if(atCfg()){
+      const existing=await atLoadByCode(code);
+      if(existing&&existing.phase==='writing'){
+        const mine={well:[],better:[],next:[]},others={well:[],better:[],next:[]};
+        ['well','better','next'].forEach(col=>{
+          existing.cards[col].forEach(c=>(c.author===user?mine:others)[col].push(c));
+        });
+        S.id=code;S.name=existing.name||typedName;S.ice=existing.ice||null;
+        S.atRecordId=existing.airtableId;
+        S.cards=mine;S.existingCards=others;
+        S.actions=(existing.actions&&existing.actions.length)?existing.actions:loadCarriedActions();
+        S.phase='writing';
+        resumed=true;
+      }
+    }
+    if(!resumed){
+      S.id=code;S.name=typedName;S.atRecordId=null;S.existingCards=null;
+      S.cards={well:[],better:[],next:[]};S.phase='writing';
+      S.actions=loadCarriedActions();
+    }
     Object.values(DEMO).flat().forEach(c=>{c.reactions={};c.myR={};c.votes=0;c.myV=false});
+    if(resumed)toast('↺ Resumed your in-progress retro — your previous cards are here');
     showIce();
   }
 }
@@ -847,9 +869,13 @@ function initBoard(){
     codeBig.textContent=S.id;banner.style.display='flex';
     inviteBtn.style.display=atCfg()?'':'none';
     if(atCfg()){
-      const initSess={id:S.id,name:S.name,date:new Date().toISOString(),ice:S.ice,
-        cards:{well:[],better:[],next:[]},actions:[]};
-      atSave(initSess).then(r=>{if(r){S.atRecordId=r.id;startAirtableSync()}else toast('⚠️ Could not save to Airtable — joiners won\'t find this session. Check your connection settings.')});
+      if(S.atRecordId){
+        startAirtableSync();
+      } else {
+        const initSess={id:S.id,name:S.name,date:new Date().toISOString(),ice:S.ice,
+          cards:{well:[],better:[],next:[]},actions:[]};
+        atSave(initSess).then(r=>{if(r){S.atRecordId=r.id;startAirtableSync()}else toast('⚠️ Could not save to Airtable — joiners won\'t find this session. Check your connection settings.')});
+      }
     }
   } else{banner.style.display='none';inviteBtn.style.display='none'}
   renderBoard();updatePhaseUI();
@@ -904,6 +930,7 @@ function addCard(col){
   const drafting=S.phase==='writing'&&(!S.isJoining||!S.joinSubmitted);
   if(drafting){
     S.cards[col].push(card);
+    if(!S.isJoining)saveMyCardsToAirtable();
   } else {
     if(!S.existingCards)S.existingCards={well:[],better:[],next:[]};
     S.existingCards[col].push(card);
@@ -917,6 +944,7 @@ function removeCard(id){
   if(S.phase!=='writing')return;
   ['well','better','next'].forEach(col=>{S.cards[col]=S.cards[col].filter(c=>c.id!==id)});
   renderBoard();
+  if(!S.isJoining)saveMyCardsToAirtable();
 }
 function editCard(e,id){
   e.stopPropagation();
@@ -938,17 +966,34 @@ function saveCardEdit(id){
   if(!newText)return;
   ['well','better','next'].forEach(col=>{const c=S.cards[col].find(x=>x.id===id);if(c)c.text=newText});
   renderCol(['well','better','next'].find(col=>S.cards[col].find(x=>x.id===id)));
+  if(!S.isJoining)saveMyCardsToAirtable();
 }
 function cancelCardEdit(id,origText){
   renderCol(['well','better','next'].find(col=>S.cards[col].find(x=>x.id===id)));
 }
+async function saveMyCardsToAirtable(){
+  if(!atCfg()||!S.atRecordId||S.isJoining||S.phase!=='writing')return;
+  const sess=await atLoadByCode(S.id);
+  const remote=sess?sess.cards:{well:[],better:[],next:[]};
+  const merged={
+    well:[...S.cards.well,...remote.well.filter(c=>c.author!==S.user)],
+    better:[...S.cards.better,...remote.better.filter(c=>c.author!==S.user)],
+    next:[...S.cards.next,...remote.next.filter(c=>c.author!==S.user)],
+  };
+  await atUpdate(S.atRecordId,{'Cards':JSON.stringify({...merged,_phase:'writing'})});
+}
+
 function startAirtableSync(){
   if(!atCfg()||S.isJoining)return;
   S.syncInt=setInterval(async()=>{
     if(S.phase!=='writing'){clearInterval(S.syncInt);S.syncInt=null;return}
     const sess=await atLoadByCode(S.id);
     if(!sess)return;
-    S.existingCards=sess.cards;
+    S.existingCards={
+      well:sess.cards.well.filter(c=>c.author!==S.user),
+      better:sess.cards.better.filter(c=>c.author!==S.user),
+      next:sess.cards.next.filter(c=>c.author!==S.user),
+    };
     renderBoard();
   },8000);
 }
@@ -1040,10 +1085,15 @@ async function reveal(){
   if(atCfg()&&!S.isJoining){
     const sess=await atLoadByCode(S.id);
     const remote=sess?sess.cards:{well:[],better:[],next:[]};
+    const remoteOthers={
+      well:remote.well.filter(c=>c.author!==S.user),
+      better:remote.better.filter(c=>c.author!==S.user),
+      next:remote.next.filter(c=>c.author!==S.user),
+    };
     const merged={
-      well:[...S.cards.well,...remote.well],
-      better:[...S.cards.better,...remote.better],
-      next:[...S.cards.next,...remote.next],
+      well:[...S.cards.well,...remoteOthers.well],
+      better:[...S.cards.better,...remoteOthers.better],
+      next:[...S.cards.next,...remoteOthers.next],
     };
     S.existingCards=merged;
     S.cards={well:[],better:[],next:[]};
