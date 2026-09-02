@@ -382,6 +382,7 @@ button{font-family:inherit;cursor:pointer}textarea,input{font-family:inherit}
     <div class="board-name" id="board-name"></div>
     <div class="join-badge" id="join-badge" style="display:none">Joining</div>
     <button class="session-code" id="board-code" onclick="copyCode()"></button>
+    <button class="btn btn-ghost btn-sm" id="invite-btn" onclick="copyJoinLink()" style="display:none;flex-shrink:0" title="Copy join link">🔗 Invite</button>
     <div class="phase-steps" id="phase-steps">
       <div class="step" data-p="writing"><div class="step-dot"></div>Write</div>
       <div class="step-line"></div>
@@ -830,14 +831,16 @@ function initBoard(){
   // Show share banner for creators only
   const banner=document.getElementById('share-banner');
   const codeBig=document.getElementById('share-code-big');
+  const inviteBtn=document.getElementById('invite-btn');
   if(!S.isJoining){
     codeBig.textContent=S.id;banner.style.display='flex';
+    inviteBtn.style.display=atCfg()?'':'none';
     if(atCfg()){
       const initSess={id:S.id,name:S.name,date:new Date().toISOString(),ice:S.ice,
         cards:{well:[],better:[],next:[]},actions:[]};
       atSave(initSess).then(r=>{if(r){S.atRecordId=r.id;startAirtableSync()}else toast('⚠️ Could not save to Airtable — joiners won\'t find this session. Check your connection settings.')});
     }
-  } else{banner.style.display='none'}
+  } else{banner.style.display='none';inviteBtn.style.display='none'}
   renderBoard();updatePhaseUI();
 }
 
